@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+
+# Segredos e credenciais
+.env
+
+# Bancos e dados baixados
+*.db
+receita_cnpj/
+
+# Saídas geradas
+*.csv
+*.xlsx
