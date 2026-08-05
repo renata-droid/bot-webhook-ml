@@ -106,14 +106,19 @@ def baixar_arquivo(url: str, destino: Path) -> bool:
     return False
 
 
-def baixar(mes: str | None) -> None:
+def baixar(mes: str | None, parcial: bool = False) -> None:
     DIR.mkdir(exist_ok=True)
     mes = mes or mes_mais_novo()
     if not mes:
         sys.exit("Não descobri o mês — passe --mes AAAA-MM")
-    print(f"Baixando base da Receita de {mes} para {DIR}/\n")
+    if parcial:
+        # amostra pra validar: 1/10 das empresas + complementos pequenos
+        arquivos = ["Estabelecimentos0.zip", "Empresas0.zip", "Simples.zip", "Municipios.zip"]
+        print(f"Baixando AMOSTRA (parcial) da Receita de {mes} para {DIR}/\n")
+    else:
+        arquivos = ARQ_ESTAB + ARQ_EMPRESA + ARQ_OUTROS
+        print(f"Baixando base COMPLETA da Receita de {mes} para {DIR}/\n")
     (DIR / "MES.txt").write_text(mes)
-    arquivos = ARQ_ESTAB + ARQ_EMPRESA + ARQ_OUTROS
     ok = 0
     for nome in arquivos:
         if baixar_arquivo(f"{BASE}/{mes}/{nome}", DIR / nome):
@@ -274,13 +279,16 @@ def status() -> None:
 def main() -> None:
     p = argparse.ArgumentParser(description="Base CNPJ da Receita -> SQLite enxuto")
     sub = p.add_subparsers(dest="cmd", required=True)
-    b = sub.add_parser("baixar"); b.add_argument("--mes", help="AAAA-MM (padrão: mais novo)")
+    b = sub.add_parser("baixar")
+    b.add_argument("--mes", help="AAAA-MM (padrão: mais novo)")
+    b.add_argument("--parcial", action="store_true",
+                   help="baixa só amostra (Estab0+Empresas0+Simples+Municipios) p/ validar")
     c = sub.add_parser("carregar")
     c.add_argument("--ufs", help="UFs ou regiões, ex: 'sudeste,sul' ou 'SP,RJ,MG'")
     sub.add_parser("status")
     a = p.parse_args()
     if a.cmd == "baixar":
-        baixar(a.mes)
+        baixar(a.mes, a.parcial)
     elif a.cmd == "carregar":
         carregar(a.ufs)
     elif a.cmd == "status":
