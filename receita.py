@@ -169,11 +169,15 @@ def carregar(ufs_arg: str | None) -> None:
 
     # 1) Municipios.zip -> código -> nome, e o conjunto de códigos das suas cidades
     cod_nome, cods_alvo = {}, set()
-    for cod, desc in linhas_do_zip(DIR / "Municipios.zip"):
-        cod_nome[cod] = desc
-        if norm(desc) in cidades:
-            cods_alvo.add(cod)
-    print(f"{len(cods_alvo)} códigos de município batem com suas cidades")
+    usar_muni = (DIR / "Municipios.zip").exists()
+    if usar_muni:
+        for cod, desc in linhas_do_zip(DIR / "Municipios.zip"):
+            cod_nome[cod] = desc
+            if norm(desc) in cidades:
+                cods_alvo.add(cod)
+        print(f"{len(cods_alvo)} códigos de município batem com suas cidades")
+    else:
+        print("Sem Municipios.zip -> guardo todas as empresas ativas das UFs (casa por UF+nome)")
 
     con = sqlite3.connect(DB)
     con.executescript("""
@@ -200,7 +204,9 @@ def carregar(ufs_arg: str | None) -> None:
             if len(r) < 28 or r[5] != "02":
                 continue
             uf, cod = r[19], r[20]
-            if uf not in ufs or cod not in cods_alvo:
+            if uf not in ufs:
+                continue
+            if usar_muni and cod not in cods_alvo:
                 continue
             basico = r[0]
             cnpj = basico + r[1] + r[2]
@@ -250,6 +256,7 @@ def carregar(ufs_arg: str | None) -> None:
     print(f"  simples: {n} registros de regime")
 
     con.executescript("""
+        CREATE INDEX IF NOT EXISTS idx_estab_uf ON estab(uf);
         CREATE INDEX IF NOT EXISTS idx_estab_mun ON estab(uf, municipio_norm);
         CREATE INDEX IF NOT EXISTS idx_estab_basico ON estab(cnpj_basico);
     """)
@@ -309,9 +316,10 @@ def casar(entrada: str, top: int, saida: str) -> None:
         cidade = norm(L.get("cidade"))
         nick = L.get("nickname") or ""
 
+        # com Municipios: casa por cidade exata; sem ele: cai pra UF + nome
         cand = con.execute(
-            "SELECT * FROM estab WHERE uf=? AND municipio_norm=?", (uf, cidade)
-        ).fetchall()
+            "SELECT * FROM estab WHERE uf=? AND (municipio_norm=? OR municipio_norm='')",
+            (uf, cidade)).fetchall()
 
         melhor, melhor_s = None, 0.0
         for e in cand:
