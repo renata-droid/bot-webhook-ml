@@ -42,7 +42,7 @@ from pathlib import Path
 
 import requests
 
-BASE = "https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj"
+BASE = "https://dadosabertos.rfb.gov.br/CNPJ/dados_abertos_cnpj"
 DIR = Path("receita_cnpj")          # onde os ZIPs ficam (você já tem essa pasta)
 DB = "receita.db"
 SELLERS_DB = "sellers.db"
