@@ -258,6 +258,116 @@ def carregar(ufs_arg: str | None) -> None:
     print(f"\nOK — {inseridos} estabelecimentos ativos nas suas cidades em {DB}")
 
 
+# --------------------------------------------------------------------------- #
+# Casamento seller -> CNPJ + preenchimento
+# --------------------------------------------------------------------------- #
+def _tokens(s: str) -> set:
+    lixo = {"LTDA", "ME", "EPP", "EIRELI", "COMERCIO", "COMERCIAL", "LOJA",
+            "STORE", "SHOP", "BRASIL", "OFICIAL", "SA", "DE", "DA", "DO", "E"}
+    return {t for t in norm(s).split() if t not in lixo and len(t) > 1}
+
+
+def _similaridade(nick: str, *nomes: str) -> float:
+    a = _tokens(nick)
+    if not a:
+        return 0.0
+    melhor = 0.0
+    for nome in nomes:
+        b = _tokens(nome)
+        if b:
+            melhor = max(melhor, len(a & b) / len(a))
+    return melhor
+
+
+def _fmt_cnpj(c: str) -> str:
+    return f"{c[:2]}.{c[2:5]}.{c[5:8]}/{c[8:12]}-{c[12:]}" if len(c) == 14 else c
+
+
+def _regime(sim) -> str:
+    if not sim:
+        return ""
+    op_s, op_mei = sim
+    if op_mei == "S":
+        return "MEI"
+    if op_s == "S":
+        return "Simples Nacional"
+    return "Outros (Presumido/Real)"
+
+
+def casar(entrada: str, top: int, saida: str) -> None:
+    con = sqlite3.connect(DB)
+    con.row_factory = sqlite3.Row
+
+    with open(entrada, encoding="utf-8") as f:
+        leads = list(csv.DictReader(f))
+    leads.sort(key=lambda r: float(r.get("score") or 0), reverse=True)
+    leads = leads[:top]
+
+    resultado = []
+    for L in leads:
+        uf = (L.get("estado") or "")[3:]
+        cidade = norm(L.get("cidade"))
+        nick = L.get("nickname") or ""
+
+        cand = con.execute(
+            "SELECT * FROM estab WHERE uf=? AND municipio_norm=?", (uf, cidade)
+        ).fetchall()
+
+        melhor, melhor_s = None, 0.0
+        for e in cand:
+            emp = con.execute(
+                "SELECT razao_social, porte FROM empresa WHERE cnpj_basico=?",
+                (e["cnpj_basico"],)).fetchone()
+            razao = emp["razao_social"] if emp else ""
+            s = _similaridade(nick, e["nome_fantasia"], razao)
+            if s > melhor_s:
+                melhor_s, melhor = s, (e, emp)
+
+        row = {
+            "nickname": nick, "uf": uf, "cidade": L.get("cidade"),
+            "transacoes": L.get("transacoes"), "score": L.get("score"),
+            "cnpj": "", "razao_social": "", "nome_fantasia": "", "porte": "",
+            "regime": "", "telefone": "", "email": "", "municipio_receita": "",
+            "confianca": "SEM MATCH" if not cand else "AMBIGUO",
+            "candidatos": len(cand), "permalink": L.get("permalink"),
+        }
+
+        if melhor and melhor_s >= 0.5:
+            e, emp = melhor
+            sim = con.execute(
+                "SELECT opcao_simples, opcao_mei FROM simples WHERE cnpj_basico=?",
+                (e["cnpj_basico"],)).fetchone()
+            tel = f"({e['ddd1']}) {e['tel1']}" if e["ddd1"] and e["tel1"] else ""
+            row.update({
+                "cnpj": _fmt_cnpj(e["cnpj"]),
+                "razao_social": emp["razao_social"] if emp else "",
+                "nome_fantasia": e["nome_fantasia"],
+                "porte": emp["porte"] if emp else "",
+                "regime": _regime(sim),
+                "telefone": tel,
+                "email": e["email"],
+                "municipio_receita": e["municipio"],
+                "confianca": "ALTA" if melhor_s >= 0.8 else "MEDIA",
+            })
+        resultado.append(row)
+
+    campos = ["nickname", "uf", "cidade", "transacoes", "score", "cnpj",
+              "razao_social", "nome_fantasia", "porte", "regime", "telefone",
+              "email", "municipio_receita", "confianca", "candidatos", "permalink"]
+    with open(saida, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.DictWriter(f, fieldnames=campos, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(resultado)
+
+    cheios = sum(1 for r in resultado if r["cnpj"])
+    print(f"\n{len(resultado)} leads -> {cheios} com CNPJ preenchido em {saida}\n")
+    print(f"{'confianca':<9} {'nickname':<22} {'cnpj':<20} telefone")
+    for r in resultado:
+        print(f"{r['confianca']:<9} {(r['nickname'] or '')[:22]:<22} "
+              f"{r['cnpj'] or '—':<20} {r['telefone']}")
+    con.close()
+
+
 def status() -> None:
     mes = (DIR / "MES.txt").read_text().strip() if (DIR / "MES.txt").exists() else "?"
     print(f"Mês baixado: {mes}")
@@ -285,12 +395,18 @@ def main() -> None:
                    help="baixa só amostra (Estab0+Empresas0+Simples+Municipios) p/ validar")
     c = sub.add_parser("carregar")
     c.add_argument("--ufs", help="UFs ou regiões, ex: 'sudeste,sul' ou 'SP,RJ,MG'")
+    k = sub.add_parser("casar")
+    k.add_argument("--entrada", default="leads_casa.csv")
+    k.add_argument("--top", type=int, default=50)
+    k.add_argument("--saida", default="leads_preenchido.csv")
     sub.add_parser("status")
     a = p.parse_args()
     if a.cmd == "baixar":
         baixar(a.mes, a.parcial)
     elif a.cmd == "carregar":
         carregar(a.ufs)
+    elif a.cmd == "casar":
+        casar(a.entrada, a.top, a.saida)
     elif a.cmd == "status":
         status()
 
