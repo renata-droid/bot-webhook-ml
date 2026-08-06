@@ -188,6 +188,11 @@ def nome_vendedor(deal):
     return _nome_usuario(deal.get(VENDEDOR_KEY)) or nome_dono(deal)
 
 
+def nome_sdr(deal):
+    """SDR (pré-vendas) do negócio; 'Sem SDR' quando não preenchido."""
+    return _nome_usuario(deal.get(SDR_KEY)) or "Sem SDR"
+
+
 def valor(deal):
     try:
         return float(deal.get("value") or 0)
@@ -381,6 +386,15 @@ def resumo(P):
     for d in criados:
         por_dono_criados[nome_vendedor(d)] += 1
 
+    # SDR (pré-vendas): leads gerados e vendas que vieram desses leads
+    por_sdr_criados = defaultdict(int)
+    for d in criados:
+        por_sdr_criados[nome_sdr(d)] += 1
+    por_sdr_ganho_val, por_sdr_ganho_qtd = defaultdict(float), defaultdict(int)
+    for d in g:
+        por_sdr_ganho_val[nome_sdr(d)] += valor(d)
+        por_sdr_ganho_qtd[nome_sdr(d)] += 1
+
     por_canal = {}  # {nome_do_campo: {rotulo: contagem_de_leads}}
 
     def _acc_canal(nome, getter):
@@ -414,6 +428,9 @@ def resumo(P):
         "por_dono_val": dict(por_dono_val),
         "por_dono_qtd": dict(por_dono_qtd),
         "por_dono_criados": dict(por_dono_criados),
+        "por_sdr_criados": dict(por_sdr_criados),
+        "por_sdr_ganho_val": dict(por_sdr_ganho_val),
+        "por_sdr_ganho_qtd": dict(por_sdr_ganho_qtd),
         "por_pipeline": dict(por_pipeline),
         "por_campo": por_campo,
         "por_canal": por_canal,
@@ -1008,6 +1025,17 @@ def gerar_xlsx(caminho):
         cats = Reference(wv, min_col=1, min_row=5, max_row=fim_g)
         ch.add_data(dados, titles_from_data=True); ch.set_categories(cats)
         wv.add_chart(ch, "A" + str(fim_g + 3))
+
+    # ---- Aba SDR ----
+    ws = wb.create_sheet("SDR")
+    ws.sheet_view.showGridLines = False
+    ws.cell(1, 1, "SDR (pré-vendas)").font = Font(name=F_NAME, bold=True, size=16, color=NAVY)
+    fim_sdr = escreve(ws, 3, 1, "Leads gerados por SDR",
+                      sem_cs(RA["por_sdr_criados"]), sem_cs(RB["por_sdr_criados"]), moeda=False)
+    escreve(ws, 3, 6, "Vendas (R$) vindas dos leads do SDR",
+            sem_cs(RA["por_sdr_ganho_val"]), sem_cs(RB["por_sdr_ganho_val"]), largura0=26)
+    escreve(ws, fim_sdr + 3, 1, "Nº de vendas por SDR (lead dele que fechou)",
+            sem_cs(RA["por_sdr_ganho_qtd"]), sem_cs(RB["por_sdr_ganho_qtd"]), moeda=False)
 
     # ---- Aba TOQUES ----
     wt = wb.create_sheet("Toques")
