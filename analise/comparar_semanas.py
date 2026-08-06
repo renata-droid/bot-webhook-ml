@@ -231,6 +231,17 @@ canais_cat = [(k, n, o) for (k, n, o) in campos_cat
 
 # Campos que devem aparecer em "Ganhos por categoria" (o resto é descartado)
 GANHOS_MANTER = {"produto", "lead", "bu", "utm_source v3", "utm_source_new", "utm_medium_new"}
+
+# Pessoas que NÃO são vendedores (CS, suporte...) — saem das tabelas por vendedor.
+# Adicione nomes aqui em minúsculo se precisar remover mais alguém.
+EXCLUIR_PESSOAS = {"aline silva"}
+
+
+def sem_cs(d):
+    """Remove das agregações por pessoa quem está em EXCLUIR_PESSOAS (compara pelo
+    nome antes de um eventual ' (#id')."""
+    return {k: v for k, v in d.items()
+            if str(k).split(" (#")[0].strip().lower() not in EXCLUIR_PESSOAS}
 # Opções do campo nativo "channel" (canal de marketing configurado na conta)
 canal_opts = {}
 for fld in deal_fields:
@@ -826,5 +837,171 @@ with zipfile.ZipFile(_docx, "w", zipfile.ZIP_DEFLATED) as z:
     z.writestr("_rels/.rels", _rels)
     z.writestr("word/document.xml", _document)
 
-print(f"\n  >>> WORD gerado: {_docx}")
-print("  Abra esse arquivo no Word. (também tem relatorio.html e resumo.json)\n")
+print(f"  Word: {_docx}", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
+# 7) Relatório EXCEL (.xlsx) — apresentável, para o "head bater o olho"
+# ---------------------------------------------------------------------------
+
+def gerar_xlsx(caminho):
+    try:
+        import openpyxl
+    except ImportError:
+        import subprocess
+        print("  Instalando openpyxl (só na 1ª vez)...", file=sys.stderr)
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "openpyxl"], check=False)
+        import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.chart import BarChart, Reference
+
+    NAVY, ZEBRA, GREEN, RED, GRAY = "1F3864", "F2F5F9", "2E7D32", "C62828", "808080"
+    F_NAME = "Calibri"
+    hfont = Font(name=F_NAME, color="FFFFFF", bold=True, size=11)
+    navy = PatternFill("solid", fgColor=NAVY)
+    zebra = PatternFill("solid", fgColor=ZEBRA)
+    thin = Side(style="thin", color="D9D9D9")
+    bd = Border(left=thin, right=thin, top=thin, bottom=thin)
+    AL = Alignment(horizontal="left", vertical="center")
+    AC = Alignment(horizontal="center", vertical="center")
+    AR = Alignment(horizontal="right", vertical="center")
+
+    wb = openpyxl.Workbook()
+
+    def cabecalho(ws, r, c0, cols):
+        for j, h in enumerate(cols):
+            cell = ws.cell(r, c0 + j, h)
+            cell.font = hfont; cell.fill = navy; cell.border = bd
+            cell.alignment = AL if j == 0 else AC
+
+    def escreve(ws, r0, c0, titulo, da, db, moeda=True, largura0=26):
+        ws.cell(r0, c0, titulo).font = Font(name=F_NAME, bold=True, size=12, color=NAVY)
+        r = r0 + 1
+        cabecalho(ws, r, c0, ["Item", L, R, "Δ %"])
+        chaves = sorted(set(da) | set(db), key=lambda k: -(da.get(k, 0) + db.get(k, 0)))
+        i = 0
+        for k in chaves:
+            r += 1; i += 1
+            a, b = da.get(k, 0), db.get(k, 0)
+            p = pct(b, a)
+            fill = zebra if i % 2 == 0 else None
+            ci = ws.cell(r, c0, str(k)); ci.alignment = AL
+            ca = ws.cell(r, c0 + 1, a if moeda else int(a))
+            cb = ws.cell(r, c0 + 2, b if moeda else int(b))
+            if moeda:
+                ca.number_format = cb.number_format = 'R$ #,##0'
+            ca.alignment = cb.alignment = AR
+            cd = ws.cell(r, c0 + 3, (p / 100.0) if p is not None else None)
+            if p is not None:
+                cd.number_format = '+0%;-0%'
+                cd.font = Font(name=F_NAME, bold=True, color=(GREEN if p >= 0 else RED))
+            cd.alignment = AC
+            for j in range(4):
+                cc = ws.cell(r, c0 + j); cc.border = bd
+                if fill:
+                    cc.fill = fill
+        ws.column_dimensions[chr(64 + c0)].width = largura0
+        for j in (1, 2, 3):
+            ws.column_dimensions[chr(64 + c0 + j)].width = 14
+        return r  # última linha escrita
+
+    # ---- Aba PAINEL ----
+    ws = wb.active; ws.title = "Painel"
+    ws.sheet_view.showGridLines = False
+    ws.merge_cells("A1:D1")
+    t = ws.cell(1, 1, f"Comparativo — semana {ARGS.inicio.replace('-', '/')} a {ARGS.fim.replace('-', '/')}")
+    t.font = Font(name=F_NAME, bold=True, size=18, color=NAVY)
+    ws.merge_cells("A2:D2")
+    st = ws.cell(2, 1, f"{me.get('company_name', '')}  ·  {L} vs {R}  ·  Δ = variação de {R} sobre {L}")
+    st.font = Font(name=F_NAME, italic=True, size=10, color=GRAY)
+
+    ws.cell(4, 1, "Resumo").font = Font(name=F_NAME, bold=True, size=12, color=NAVY)
+    cabecalho(ws, 5, 1, ["Métrica", L, R, "Δ %"])
+    kpis = [("Ganhos (R$)", RA["ganho_total"], RB["ganho_total"], True),
+            ("Negócios ganhos", RA["ganho_qtd"], RB["ganho_qtd"], False),
+            ("Ticket médio", RA["ticket_medio"], RB["ticket_medio"], True),
+            ("Negócios criados", RA["criados_qtd"], RB["criados_qtd"], False),
+            ("Negócios perdidos", RA["perdidos_qtd"], RB["perdidos_qtd"], False),
+            ("Atividades (toques)", RA["ativ_total"], RB["ativ_total"], False)]
+    r = 5
+    for i, (nome, a, b, moeda) in enumerate(kpis, 1):
+        r += 1; p = pct(b, a)
+        ci = ws.cell(r, 1, nome); ci.alignment = AL; ci.font = Font(name=F_NAME, size=11)
+        ca = ws.cell(r, 2, a if moeda else int(a)); cb = ws.cell(r, 3, b if moeda else int(b))
+        if moeda:
+            ca.number_format = cb.number_format = 'R$ #,##0'
+        ca.alignment = cb.alignment = AR
+        cd = ws.cell(r, 4, (p / 100.0) if p is not None else None)
+        if p is not None:
+            cd.number_format = '+0%;-0%'
+            cd.font = Font(name=F_NAME, bold=True, size=11, color=(GREEN if p >= 0 else RED))
+        cd.alignment = AC
+        fill = zebra if i % 2 == 0 else None
+        for j in range(1, 5):
+            cc = ws.cell(r, j); cc.border = bd
+            if fill:
+                cc.fill = fill
+    ws.column_dimensions["A"].width = 24
+    for col in ("B", "C", "D"):
+        ws.column_dimensions[col].width = 15
+    ws.freeze_panes = "A6"
+
+    # gráfico: ganhos por vendedor (fonte na aba Vendedores, criado depois)
+
+    # ---- Aba VENDEDORES ----
+    wv = wb.create_sheet("Vendedores")
+    wv.sheet_view.showGridLines = False
+    wv.cell(1, 1, "Vendedores").font = Font(name=F_NAME, bold=True, size=16, color=NAVY)
+    fim_g = escreve(wv, 3, 1, "Ganho por vendedor", sem_cs(RA["por_dono_val"]), sem_cs(RB["por_dono_val"]))
+    escreve(wv, 3, 6, "Nº de ganhos por vendedor",
+            sem_cs(RA["por_dono_qtd"]), sem_cs(RB["por_dono_qtd"]), moeda=False)
+    # gráfico de barras: ganho por vendedor (2025 x 2026)
+    if fim_g > 4:
+        ch = BarChart(); ch.type = "bar"; ch.title = f"Ganho por vendedor  {L} x {R}"
+        ch.height = 8; ch.width = 16
+        dados = Reference(wv, min_col=2, max_col=3, min_row=4, max_row=fim_g)
+        cats = Reference(wv, min_col=1, min_row=5, max_row=fim_g)
+        ch.add_data(dados, titles_from_data=True); ch.set_categories(cats)
+        wv.add_chart(ch, "A" + str(fim_g + 3))
+
+    # ---- Aba TOQUES ----
+    wt = wb.create_sheet("Toques")
+    wt.sheet_view.showGridLines = False
+    wt.cell(1, 1, "Toques (atividades)").font = Font(name=F_NAME, bold=True, size=16, color=NAVY)
+    escreve(wt, 3, 1, "Por tipo", RA["ativ_tipo"], RB["ativ_tipo"], moeda=False, largura0=22)
+    escreve(wt, 3, 6, "Por pessoa", sem_cs(RA["ativ_user"]), sem_cs(RB["ativ_user"]), moeda=False)
+
+    # ---- Aba LEADS E CANAIS ----
+    wl = wb.create_sheet("Leads e Canais")
+    wl.sheet_view.showGridLines = False
+    wl.cell(1, 1, "Leads: volume e canal").font = Font(name=F_NAME, bold=True, size=16, color=NAVY)
+    r = escreve(wl, 3, 1, "Leads criados por vendedor",
+                sem_cs(RA["por_dono_criados"]), sem_cs(RB["por_dono_criados"]), moeda=False)
+    r += 3
+    for nome in sorted(set(RA["por_canal"]) | set(RB["por_canal"])):
+        r = escreve(wl, r, 1, f"Leads por “{nome}”",
+                    RA["por_canal"].get(nome, {}), RB["por_canal"].get(nome, {}),
+                    moeda=False, largura0=30) + 3
+
+    # ---- Aba GANHOS ----
+    wg = wb.create_sheet("Ganhos")
+    wg.sheet_view.showGridLines = False
+    wg.cell(1, 1, "Ganhos por pipeline e categoria").font = Font(name=F_NAME, bold=True, size=16, color=NAVY)
+    r = escreve(wg, 3, 1, "Ganhos por pipeline", RA["por_pipeline"], RB["por_pipeline"], largura0=30) + 3
+    for key, nome, _o in campos_cat:
+        if nome.lower().strip() not in GANHOS_MANTER:
+            continue
+        da = (RA["por_campo"].get(nome) or {}).get("valor", {})
+        db_ = (RB["por_campo"].get(nome) or {}).get("valor", {})
+        if not da and not db_:
+            continue
+        r = escreve(wg, r, 1, f"Ganhos por “{nome}”", da, db_, largura0=30) + 3
+
+    wb.save(caminho)
+
+
+_xlsx = os.path.join(ARGS.saida, "relatorio.xlsx")
+gerar_xlsx(_xlsx)
+print(f"\n  >>> EXCEL gerado: {_xlsx}")
+print("  Abra no Excel (abas: Painel, Vendedores, Toques, Leads e Canais, Ganhos).")
+print("  (também gerou relatorio.docx, relatorio.html e resumo.json)\n")
