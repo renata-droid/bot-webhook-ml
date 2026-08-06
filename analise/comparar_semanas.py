@@ -217,6 +217,21 @@ for fld in deal_fields:
 estagios = {s["id"]: s for s in (http_get_all("/stages") or [])}
 pipelines = {p["id"]: p["name"] for p in (http_get_all("/pipelines") or [])}
 
+# Tipos de atividade -> nome legível (Ligação, E-mail, Reunião, Tarefa...)
+tipos_ativ = {t.get("key_string"): t.get("name")
+              for t in (http_get_all("/activityTypes") or [])}
+
+# Campos que indicam ORIGEM / CANAL do lead ("de onde vem o lead")
+PALAVRAS_CANAL = ("origem", "fonte", "canal", "source", "onde", "midia", "mídia",
+                  "campanha", "utm", "aquisic", "aquisiç", "lead")
+canais_cat = [(k, n, o) for (k, n, o) in campos_cat
+              if any(w in n.lower() for w in PALAVRAS_CANAL)]
+# Opções do campo nativo "channel" (canal de marketing configurado na conta)
+canal_opts = {}
+for fld in deal_fields:
+    if fld.get("key") == "channel":
+        canal_opts = {str(o["id"]): o["label"] for o in (fld.get("options") or [])}
+
 
 # ---------------------------------------------------------------------------
 # 1) Coleta por período
@@ -291,21 +306,55 @@ def resumo(P):
                 acc_v[rot] += valor(d); acc_q[rot] += 1; houve = True
         if houve:
             por_campo[nome] = {"valor": dict(acc_v), "qtd": dict(acc_q)}
-    # atividades por tipo e por usuário
+    # atividades (toques) por tipo (nome legível) e por pessoa
     ativ_tipo, ativ_user = defaultdict(int), defaultdict(int)
     for a in P["atividades"]:
-        ativ_tipo[a.get("type") or "?"] += 1
-        ativ_user[a.get("owner_name") or a.get("assigned_to_user_id") or "?"] += 1
+        tp = a.get("type") or "?"
+        ativ_tipo[tipos_ativ.get(tp, tp)] += 1
+        ativ_user[a.get("owner_name") or f"user {a.get('assigned_to_user_id')}"] += 1
+
+    # LEADS (negócios criados) por canal/origem e por dono
+    criados = P["criados"]
+    por_dono_criados = defaultdict(int)
+    for d in criados:
+        por_dono_criados[nome_dono(d)] += 1
+
+    por_canal = {}  # {nome_do_campo: {rotulo: contagem_de_leads}}
+
+    def _acc_canal(nome, getter):
+        acc, houve = defaultdict(int), False
+        for d in criados:
+            rot = getter(d)
+            if rot:
+                acc[rot] += 1; houve = True
+        if houve:
+            por_canal[nome] = dict(acc)
+
+    _acc_canal("Origem (sistema)", lambda d: d.get("origin"))
+    if canal_opts:
+        _acc_canal("Canal de marketing",
+                   lambda d: canal_opts.get(str(d.get("channel")))
+                   if d.get("channel") not in (None, "", 0, "0") else None)
+    for key, nome, opts in canais_cat:
+        def _get(d, key=key, opts=opts):
+            raw = d.get(key)
+            if raw in (None, "", "0"):
+                return None
+            return ", ".join(opts.get(o.strip(), o.strip()) for o in str(raw).split(","))
+        _acc_canal(nome, _get)
+
     return {
         "ganho_total": total,
         "ganho_qtd": len(g),
-        "criados_qtd": len(P["criados"]),
+        "criados_qtd": len(criados),
         "perdidos_qtd": len(P["perdidos"]),
         "ticket_medio": (total / len(g)) if g else 0.0,
         "por_dono_val": dict(por_dono_val),
         "por_dono_qtd": dict(por_dono_qtd),
+        "por_dono_criados": dict(por_dono_criados),
         "por_pipeline": dict(por_pipeline),
         "por_campo": por_campo,
+        "por_canal": por_canal,
         "produtos": {k: v for k, v in P["produtos"].items()},
         "ativ_tipo": dict(ativ_tipo),
         "ativ_user": dict(ativ_user),
@@ -346,7 +395,85 @@ linha("Negócios criados", RA["criados_qtd"], RB["criados_qtd"], fmt=lambda x: s
 linha("Negócios perdidos", RA["perdidos_qtd"], RB["perdidos_qtd"], fmt=lambda x: str(int(x)))
 linha("Atividades feitas", RA["ativ_total"], RB["ativ_total"], fmt=lambda x: str(int(x)))
 print("=" * 64)
-print(f"  Relatório completo -> {os.path.join(ARGS.saida, 'relatorio.html')}\n")
+
+
+# ---------------------------------------------------------------------------
+# 3b) DIAGNÓSTICO: por que caiu? (tabelas no terminal)
+# ---------------------------------------------------------------------------
+
+def fmt_delta(a, b):
+    p = pct(b, a)
+    return "(novo)" if p is None else f"({p:+.0f}%)"
+
+
+def tab_terminal(titulo, da, db, moeda=True, largura=24):
+    chaves = sorted(set(da) | set(db), key=lambda k: -(da.get(k, 0) + db.get(k, 0)))
+    print(f"\n  {titulo}")
+    print(f"      {'':<{largura}}{L:>12}{R:>12}{'Δ':>10}")
+    for k in chaves:
+        a, b = da.get(k, 0), db.get(k, 0)
+        fa = brl(a) if moeda else str(int(a))
+        fb = brl(b) if moeda else str(int(b))
+        print(f"      {str(k)[:largura - 1]:<{largura}}{fa:>12}{fb:>12}{fmt_delta(a, b):>10}")
+
+
+print("\n" + "=" * 64)
+print("  POR QUE CAIU?  (diagnóstico automático)")
+print("=" * 64)
+
+# 1) Vendedores: ganho, nº de vendas e toques
+tab_terminal("[1] Ganho por vendedor", RA["por_dono_val"], RB["por_dono_val"])
+tab_terminal("[2] Toques (atividades) por vendedor", RA["ativ_user"], RB["ativ_user"], moeda=False)
+
+# 2) Toques por tipo (ligação, e-mail, reunião...)
+tab_terminal("[3] Toques por tipo", RA["ativ_tipo"], RB["ativ_tipo"], moeda=False)
+
+# 3) Produtos vendidos
+prod_val_a = {k: v["valor"] for k, v in RA["produtos"].items()}
+prod_val_b = {k: v["valor"] for k, v in RB["produtos"].items()}
+if prod_val_a or prod_val_b:
+    tab_terminal("[4] Ganho por produto", prod_val_a, prod_val_b, largura=30)
+else:
+    print("\n  [4] Ganho por produto: (sem line items — produto pode estar em campo custom)")
+
+# 4) LEADS por canal / origem
+if RA["por_canal"] or RB["por_canal"]:
+    campos = sorted(set(RA["por_canal"]) | set(RB["por_canal"]))
+    for nome in campos:
+        tab_terminal(f"[5] Leads criados por “{nome}”",
+                     RA["por_canal"].get(nome, {}), RB["por_canal"].get(nome, {}),
+                     moeda=False, largura=30)
+else:
+    print("\n  [5] Canal/origem do lead: nenhum campo de origem encontrado.")
+    print("      (crie um campo 'Origem/Fonte' no Pipedrive p/ rastrear canal)")
+
+# 5) Leitura automática
+print("\n  [6] LEITURA AUTOMÁTICA")
+ta = RA["ativ_total"] / RA["criados_qtd"] if RA["criados_qtd"] else 0
+tb = RB["ativ_total"] / RB["criados_qtd"] if RB["criados_qtd"] else 0
+print(f"      - Toques por lead: {ta:.1f} ({L}) -> {tb:.1f} ({R})  {fmt_delta(ta, tb)}")
+# quem trabalhava e praticamente parou
+sumiram = []
+for v in set(RA["ativ_user"]) | set(RB["ativ_user"]):
+    aa, ab = RA["ativ_user"].get(v, 0), RB["ativ_user"].get(v, 0)
+    if aa >= 20 and ab <= aa * 0.25:
+        sumiram.append((v, aa, ab))
+if sumiram:
+    print("      - Vendedor(es) que quase PARARAM (saída/férias?):")
+    for v, aa, ab in sorted(sumiram, key=lambda x: -x[1]):
+        print(f"          * {v}: {aa} -> {ab} toques")
+else:
+    print("      - Queda de toques parece GERAL (não concentrada em 1 pessoa).")
+# produto que encalhou
+for p in prod_val_a:
+    if prod_val_a.get(p, 0) >= 10000 and prod_val_b.get(p, 0) == 0:
+        print(f"      - Produto que ENCALHOU: {p} ({brl(prod_val_a[p])} -> R$ 0)")
+if RB["criados_qtd"] > RA["criados_qtd"] * 1.3 and RB["ativ_total"] < RA["ativ_total"]:
+    print(f"      - MUDANÇA DE FOCO: leads {int(RA['criados_qtd'])} -> {int(RB['criados_qtd'])}, "
+          f"mas toques {int(RA['ativ_total'])} -> {int(RB['ativ_total'])}.")
+    print("        => a operação passou a GERAR lead em vez de TRABALHAR/FECHAR lead.")
+print("=" * 64)
+print(f"\n  Relatório completo -> {os.path.join(ARGS.saida, 'relatorio.html')}\n")
 
 
 # ---------------------------------------------------------------------------
@@ -439,6 +566,17 @@ for key, nome, _opts in campos_cat:
 prod_a = {k: v["valor"] for k, v in RA["produtos"].items()}
 prod_b = {k: v["valor"] for k, v in RB["produtos"].items()}
 
+# Tabelas de canal/origem dos leads criados
+canal_html = ""
+for nome in sorted(set(RA["por_canal"]) | set(RB["por_canal"])):
+    canal_html += tabela_comparada(f"Leads criados por “{nome}”",
+                                   RA["por_canal"].get(nome, {}),
+                                   RB["por_canal"].get(nome, {}), is_moeda=False)
+if not canal_html:
+    canal_html = ("<h3>Canal / origem do lead</h3><p style='color:#888'>Nenhum campo de "
+                  "origem encontrado. Crie um campo <b>Origem/Fonte</b> no Pipedrive para "
+                  "rastrear de onde vêm os leads.</p>")
+
 html = f"""<!doctype html><html lang="pt-br"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Comparativo {ARGS.ano_a} x {ARGS.ano_b}</title>
@@ -480,19 +618,29 @@ html = f"""<!doctype html><html lang="pt-br"><head><meta charset="utf-8">
   {card("Atividades feitas", RA['ativ_total'], RB['ativ_total'], moeda=False)}
 </div>
 
+<h2 style="margin:26px 0 2px;font-size:18px">👥 Vendedores</h2>
 <div class="grid">
   <div>{tabela_comparada("Ganhos por vendedor (valor)", RA['por_dono_val'], RB['por_dono_val'])}</div>
   <div>{tabela_comparada("Nº de ganhos por vendedor", RA['por_dono_qtd'], RB['por_dono_qtd'], is_moeda=False)}</div>
 </div>
 
+<h2 style="margin:26px 0 2px;font-size:18px">📞 Toques (atividades)</h2>
+<div class="grid">
+  <div>{tabela_comparada("Toques por tipo", RA['ativ_tipo'], RB['ativ_tipo'], is_moeda=False)}</div>
+  <div>{tabela_comparada("Toques por pessoa", RA['ativ_user'], RB['ativ_user'], is_moeda=False)}</div>
+</div>
+
+<h2 style="margin:26px 0 2px;font-size:18px">📥 Leads: volume e canal</h2>
+<div class="grid">
+  <div>{tabela_comparada("Leads criados por vendedor", RA['por_dono_criados'], RB['por_dono_criados'], is_moeda=False)}</div>
+  <div></div>
+</div>
+{canal_html}
+
+<h2 style="margin:26px 0 2px;font-size:18px">💼 Produtos e funil</h2>
 {tabela_comparada("Ganhos por produto (line items)", prod_a, prod_b)}
 {tabela_comparada("Ganhos por pipeline", RA['por_pipeline'], RB['por_pipeline'])}
 {campos_html}
-
-<div class="grid">
-  <div>{tabela_comparada("Atividades por tipo", RA['ativ_tipo'], RB['ativ_tipo'], is_moeda=False)}</div>
-  <div>{tabela_comparada("Atividades por pessoa", RA['ativ_user'], RB['ativ_user'], is_moeda=False)}</div>
-</div>
 
 </body></html>"""
 
