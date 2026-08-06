@@ -344,20 +344,27 @@ def casar(entrada: str, top: int, saida: str) -> None:
         cidade = norm(L.get("cidade"))
         nick = L.get("nickname") or ""
 
-        # com Municipios: casa por cidade exata; sem ele: cai pra UF + nome
-        cand = con.execute(
-            "SELECT * FROM estab WHERE uf=? AND (municipio_norm=? OR municipio_norm='')",
-            (uf, cidade)).fetchall()
+        # pre-filtra no banco pelos tokens distintivos do apelido -> poucos candidatos
+        # (com Municipios: cidade exata; sem ele: municipio_norm vazio cai pra UF)
+        chaves = sorted(_tokens(nick), key=len, reverse=True)[:2]
+        cand = []
+        if chaves:
+            like = " OR ".join(["e.nome_fantasia LIKE ? OR em.razao_social LIKE ?"
+                                for _ in chaves])
+            params = [uf, cidade]
+            for k in chaves:
+                params += [f"%{k}%", f"%{k}%"]
+            cand = con.execute(
+                "SELECT e.*, em.razao_social AS razao, em.porte AS porte "
+                "FROM estab e LEFT JOIN empresa em ON em.cnpj_basico = e.cnpj_basico "
+                "WHERE e.uf=? AND (e.municipio_norm=? OR e.municipio_norm='') "
+                f"AND ({like})", params).fetchall()
 
         melhor, melhor_s, segundo_s = None, 0.0, 0.0
         for e in cand:
-            emp = con.execute(
-                "SELECT razao_social, porte FROM empresa WHERE cnpj_basico=?",
-                (e["cnpj_basico"],)).fetchone()
-            razao = emp["razao_social"] if emp else ""
-            s = _pontuar(nick, e["nome_fantasia"], razao)
+            s = _pontuar(nick, e["nome_fantasia"], e["razao"])
             if s > melhor_s:
-                melhor_s, segundo_s, melhor = s, melhor_s, (e, emp)
+                melhor_s, segundo_s, melhor = s, melhor_s, e
             elif s > segundo_s:
                 segundo_s = s
 
@@ -373,16 +380,16 @@ def casar(entrada: str, top: int, saida: str) -> None:
         }
 
         if melhor and melhor_s >= 0.5 and not ambiguo:
-            e, emp = melhor
+            e = melhor
             sim = con.execute(
                 "SELECT opcao_simples, opcao_mei FROM simples WHERE cnpj_basico=?",
                 (e["cnpj_basico"],)).fetchone()
             tel = f"({e['ddd1']}) {e['tel1']}" if e["ddd1"] and e["tel1"] else ""
             row.update({
                 "cnpj": _fmt_cnpj(e["cnpj"]),
-                "razao_social": emp["razao_social"] if emp else "",
+                "razao_social": e["razao"] or "",
                 "nome_fantasia": e["nome_fantasia"],
-                "porte": emp["porte"] if emp else "",
+                "porte": e["porte"] or "",
                 "regime": _regime(sim),
                 "telefone": tel,
                 "email": e["email"],
