@@ -224,8 +224,13 @@ tipos_ativ = {t.get("key_string"): t.get("name")
 # Campos que indicam ORIGEM / CANAL do lead ("de onde vem o lead")
 PALAVRAS_CANAL = ("origem", "fonte", "canal", "source", "onde", "midia", "mídia",
                   "campanha", "utm", "aquisic", "aquisiç", "lead")
+EXCLUIR_CANAL = ("origem contratual",)   # campos de canal a NÃO exibir
 canais_cat = [(k, n, o) for (k, n, o) in campos_cat
-              if any(w in n.lower() for w in PALAVRAS_CANAL)]
+              if any(w in n.lower() for w in PALAVRAS_CANAL)
+              and n.lower().strip() not in EXCLUIR_CANAL]
+
+# Campos que devem aparecer em "Ganhos por categoria" (o resto é descartado)
+GANHOS_MANTER = {"produto", "lead", "bu", "utm_source v3", "utm_source_new", "utm_medium_new"}
 # Opções do campo nativo "channel" (canal de marketing configurado na conta)
 canal_opts = {}
 for fld in deal_fields:
@@ -557,6 +562,8 @@ def card(rotulo, va, vb, moeda=True):
 
 campos_html = ""
 for key, nome, _opts in campos_cat:
+    if nome.lower().strip() not in GANHOS_MANTER:
+        continue
     da = RA["por_campo"].get(nome); db_ = RB["por_campo"].get(nome)
     if not da and not db_:
         continue
@@ -652,4 +659,172 @@ with open(os.path.join(ARGS.saida, "resumo.json"), "w", encoding="utf-8") as f:
     json.dump({"ano_a": ARGS.ano_a, "ano_b": ARGS.ano_b,
                "resumo_a": RA, "resumo_b": RB}, f, ensure_ascii=False, indent=2, default=str)
 
-print("Concluído. Abra saida/relatorio.html e, se quiser, me mande o saida/resumo.json.\n")
+# ---------------------------------------------------------------------------
+# 6) Relatório WORD (.docx) — sem dependências (só zipfile + stdlib)
+# ---------------------------------------------------------------------------
+import zipfile
+from xml.sax.saxutils import escape as _esc
+
+VERDE, VERMELHO = "16A34A", "DC2626"
+
+
+def _run(text, bold=False, color=None, size=None):
+    props = ""
+    if bold:
+        props += "<w:b/>"
+    if color:
+        props += f'<w:color w:val="{color}"/>'
+    if size:
+        props += f'<w:sz w:val="{size}"/><w:szCs w:val="{size}"/>'
+    rpr = f"<w:rPr>{props}</w:rPr>" if props else ""
+    return f'<w:r>{rpr}<w:t xml:space="preserve">{_esc(str(text))}</w:t></w:r>'
+
+
+def _p(runs="", before=None):
+    if isinstance(runs, str) and not runs.startswith("<w:r"):
+        runs = _run(runs)
+    ppr = f'<w:pPr><w:spacing w:before="{before}"/></w:pPr>' if before else ""
+    return f"<w:p>{ppr}{runs}</w:p>"
+
+
+def _h(text, level=1):
+    return _p(_run(text, bold=True, size=(32 if level == 1 else 26)), before="240")
+
+
+_BORDERS = "<w:tblBorders>" + "".join(
+    f'<w:{s} w:val="single" w:sz="4" w:space="0" w:color="D0D0D0"/>'
+    for s in ("top", "left", "bottom", "right", "insideH", "insideV")) + "</w:tblBorders>"
+
+
+def _tc(runs, fill=None):
+    tcpr = "<w:tcPr>" + (f'<w:shd w:val="clear" w:color="auto" w:fill="{fill}"/>' if fill else "") + "</w:tcPr>"
+    return f"<w:tc>{tcpr}{_p(runs)}</w:tc>"
+
+
+def _tabela(headers, rows):
+    tbl = f'<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/>{_BORDERS}</w:tblPr>'
+    tbl += "<w:tr>" + "".join(_tc(_run(h, bold=True), fill="EEF0F3") for h in headers) + "</w:tr>"
+    for row in rows:
+        cells = ""
+        for c in row:
+            cells += _tc(_run(c[0], color=c[1])) if isinstance(c, tuple) else _tc(_run(c))
+        tbl += f"<w:tr>{cells}</w:tr>"
+    return tbl + "</w:tbl>" + _p("")
+
+
+def _linhas(da, db, moeda=True):
+    chaves = sorted(set(da) | set(db), key=lambda k: -(da.get(k, 0) + db.get(k, 0)))
+    out = []
+    for k in chaves:
+        a, b = da.get(k, 0), db.get(k, 0)
+        p = pct(b, a)
+        col = None if p is None else (VERDE if p >= 0 else VERMELHO)
+        ps = "—" if p is None else f"{p:+.0f}%"
+        fa = brl(a) if moeda else str(int(a))
+        fb = brl(b) if moeda else str(int(b))
+        out.append([str(k), fa, fb, (ps, col)])
+    return out
+
+
+def _row(nome, a, b, moeda=True):
+    p = pct(b, a)
+    col = None if p is None else (VERDE if p >= 0 else VERMELHO)
+    ps = "—" if p is None else f"{p:+.0f}%"
+    fa = brl(a) if moeda else str(int(a))
+    fb = brl(b) if moeda else str(int(b))
+    return [nome, fa, fb, (ps, col)]
+
+
+HDR = ["Item", L, R, "Δ (2026/2025)"]
+
+
+def _vendedores(R):
+    nomes = set(R["por_dono_val"]) | set(R["ativ_user"]) | set(R["por_dono_criados"])
+    return sorted(n for n in nomes if n and n != "?" and not str(n).startswith("user "))
+
+
+def _leads_por_id(deals):
+    acc = defaultdict(int)
+    for d in deals:
+        u = d.get("user_id")
+        lab = f"{u.get('name')} (#{u.get('id')})" if isinstance(u, dict) else f"user #{u}"
+        acc[lab] += 1
+    return dict(acc)
+
+
+va, vb = _vendedores(RA), _vendedores(RB)
+corpo = []
+corpo.append(_h(f"Comparativo — mesma semana {ARGS.inicio.replace('-', '/')} a {ARGS.fim.replace('-', '/')}", 1))
+corpo.append(_p(_run(f"{me.get('company_name', '')}  ·  {L} vs {R}  ·  Δ = variação de {R} sobre {L}", color="777777")))
+
+corpo.append(_h("Resumo", 2))
+corpo.append(_tabela(HDR, [
+    _row("Ganhos (R$)", RA["ganho_total"], RB["ganho_total"]),
+    _row("Negócios ganhos", RA["ganho_qtd"], RB["ganho_qtd"], moeda=False),
+    _row("Ticket médio", RA["ticket_medio"], RB["ticket_medio"]),
+    _row("Negócios criados", RA["criados_qtd"], RB["criados_qtd"], moeda=False),
+    _row("Negócios perdidos", RA["perdidos_qtd"], RB["perdidos_qtd"], moeda=False),
+    _row("Atividades (toques)", RA["ativ_total"], RB["ativ_total"], moeda=False),
+]))
+
+corpo.append(_h("Vendedores", 2))
+corpo.append(_tabela(["Ano", "Qtd vendedores", "Nomes"], [
+    [L, str(len(va)), ", ".join(va) or "—"],
+    [R, str(len(vb)), ", ".join(vb) or "—"],
+]))
+corpo.append(_p(_run("Ganho por vendedor", bold=True)))
+corpo.append(_tabela(HDR, _linhas(RA["por_dono_val"], RB["por_dono_val"])))
+corpo.append(_p(_run("Nº de ganhos por vendedor", bold=True)))
+corpo.append(_tabela(HDR, _linhas(RA["por_dono_qtd"], RB["por_dono_qtd"], moeda=False)))
+
+corpo.append(_h("Toques (atividades)", 2))
+corpo.append(_p(_run("Por tipo", bold=True)))
+corpo.append(_tabela(HDR, _linhas(RA["ativ_tipo"], RB["ativ_tipo"], moeda=False)))
+corpo.append(_p(_run("Por pessoa", bold=True)))
+corpo.append(_tabela(HDR, _linhas(RA["ativ_user"], RB["ativ_user"], moeda=False)))
+
+corpo.append(_h("Leads: volume e canal", 2))
+corpo.append(_p(_run("Leads criados por vendedor (com #ID do usuário)", bold=True)))
+corpo.append(_tabela(HDR, _linhas(_leads_por_id(A["criados"]), _leads_por_id(B["criados"]), moeda=False)))
+for nome in sorted(set(RA["por_canal"]) | set(RB["por_canal"])):
+    corpo.append(_p(_run(f"Leads criados por “{nome}”", bold=True)))
+    corpo.append(_tabela(HDR, _linhas(RA["por_canal"].get(nome, {}), RB["por_canal"].get(nome, {}), moeda=False)))
+
+corpo.append(_h("Ganhos por pipeline", 2))
+corpo.append(_tabela(HDR, _linhas(RA["por_pipeline"], RB["por_pipeline"])))
+
+corpo.append(_h("Ganhos por categoria", 2))
+for key, nome, _o in campos_cat:
+    if nome.lower().strip() not in GANHOS_MANTER:
+        continue
+    da = (RA["por_campo"].get(nome) or {}).get("valor", {})
+    db_ = (RB["por_campo"].get(nome) or {}).get("valor", {})
+    if not da and not db_:
+        continue
+    corpo.append(_p(_run(f"Ganhos por “{nome}”", bold=True)))
+    corpo.append(_tabela(HDR, _linhas(da, db_)))
+
+_document = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+             '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
+             + "".join(corpo)
+             + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'
+               '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr>'
+               '</w:body></w:document>')
+_ct = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+       '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+       '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+       '<Default Extension="xml" ContentType="application/xml"/>'
+       '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+       '</Types>')
+_rels = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+         '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
+         '</Relationships>')
+_docx = os.path.join(ARGS.saida, "relatorio.docx")
+with zipfile.ZipFile(_docx, "w", zipfile.ZIP_DEFLATED) as z:
+    z.writestr("[Content_Types].xml", _ct)
+    z.writestr("_rels/.rels", _rels)
+    z.writestr("word/document.xml", _document)
+
+print(f"\n  >>> WORD gerado: {_docx}")
+print("  Abra esse arquivo no Word. (também tem relatorio.html e resumo.json)\n")
