@@ -282,7 +282,13 @@ import unicodedata
 # ignora acento e casa por nome parcial (ex.: "Nickolas" ~ "Nickolas Ferreira";
 # "Leticia" ~ "Letícia Silva") para não duplicar linhas.
 CLOSERS = ["Christopher", "Renato Benedetti", "Lucas Gallera", "Matheus Medeiros", "Nickolas"]
-SDRS = ["Gabriel Frizzo", "Leticia"]
+
+# Roster OFICIAL de SDRs. A aba SDR mostra SOMENTE estes nomes (todos aparecem,
+# 0 se não tiverem dado no período). O campo "SDR" do CRM contém gente que NÃO é
+# SDR (closers/proprietários lançados no campo errado), por isso filtramos pelo
+# roster em vez de listar tudo que aparece no campo. Ajuste a lista conforme o time.
+SDR_ROSTER = ["Gabriel Frizzo", "Leticia", "Rafaela Colaco",
+              "Milena Bragiatto", "Ingrid Lima", "Fernanda Vilas Boas"]
 
 
 def _norm(s):
@@ -290,11 +296,16 @@ def _norm(s):
                    if unicodedata.category(c) != "Mn")
 
 
+def _casa(a, b):
+    """True se um nome é parte do outro (ignorando acento)."""
+    na, nb = _norm(a), _norm(b)
+    return na in nb or nb in na
+
+
 def _garantir(d, nomes):
     out = dict(d)
     for n in nomes:
-        nn = _norm(n)
-        if not any(nn in _norm(k) or _norm(k) in nn for k in out):
+        if not any(_casa(n, k) for k in out):
             out[n] = 0
     return out
 
@@ -303,8 +314,13 @@ def com_closers(d):
     return _garantir(d, CLOSERS)
 
 
-def com_sdrs(d):
-    return _garantir(d, SDRS)
+def so_roster(d, roster):
+    """Mantém só quem casa com o roster e garante todos (0 se ausente)."""
+    out = {k: v for k, v in d.items() if any(_casa(n, k) for n in roster)}
+    for n in roster:
+        if not any(_casa(n, k) for k in out):
+            out[n] = 0
+    return out
 # Opções do campo nativo "channel" (canal de marketing configurado na conta)
 canal_opts = {}
 for fld in deal_fields:
@@ -1046,14 +1062,14 @@ def gerar_xlsx(caminho):
     ws.sheet_view.showGridLines = False
     ws.cell(1, 1, "SDR (pré-vendas)").font = Font(name=F_NAME, bold=True, size=16, color=NAVY)
     fim_sdr = escreve(ws, 3, 1, "Leads gerados por SDR",
-                      com_sdrs(sem_cs(RA["por_sdr_criados"])),
-                      com_sdrs(sem_cs(RB["por_sdr_criados"])), moeda=False)
+                      so_roster(RA["por_sdr_criados"], SDR_ROSTER),
+                      so_roster(RB["por_sdr_criados"], SDR_ROSTER), moeda=False)
     escreve(ws, 3, 6, "Vendas (R$) vindas dos leads do SDR",
-            com_sdrs(sem_cs(RA["por_sdr_ganho_val"])),
-            com_sdrs(sem_cs(RB["por_sdr_ganho_val"])), largura0=26)
+            so_roster(RA["por_sdr_ganho_val"], SDR_ROSTER),
+            so_roster(RB["por_sdr_ganho_val"], SDR_ROSTER), largura0=26)
     escreve(ws, fim_sdr + 3, 1, "Nº de vendas por SDR (lead dele que fechou)",
-            com_sdrs(sem_cs(RA["por_sdr_ganho_qtd"])),
-            com_sdrs(sem_cs(RB["por_sdr_ganho_qtd"])), moeda=False)
+            so_roster(RA["por_sdr_ganho_qtd"], SDR_ROSTER),
+            so_roster(RB["por_sdr_ganho_qtd"], SDR_ROSTER), moeda=False)
 
     # ---- Aba TOQUES ----
     wt = wb.create_sheet("Toques")
