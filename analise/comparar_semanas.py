@@ -157,12 +157,35 @@ def brl(v):
 
 usuarios = {}  # {id: nome} — preenchido depois de conectar (map ID -> nome)
 
+# Campo customizado "Vendedor" (o CLOSER que fechou). NÃO confundir com "user_id"
+# (que é o Proprietário/dono do card). Também existe "SDR".
+VENDEDOR_KEY = "db2c9632937b836eae914bb3749d19f3b129b31d"
+SDR_KEY = "966e0b1c6e28cbb30fb6d82394746d33da5c07ea"
+
+
+def _nome_usuario(v):
+    """Resolve um valor de campo do tipo usuário (id int, string ou dict) -> nome."""
+    if v in (None, "", 0, "0"):
+        return None
+    if isinstance(v, dict):
+        v = v.get("id")
+    try:
+        v = int(v)
+    except (TypeError, ValueError):
+        pass
+    return usuarios.get(v)
+
 
 def nome_dono(deal):
     u = deal.get("user_id")
     if isinstance(u, dict):
         return u.get("name") or usuarios.get(u.get("id")) or f"user {u.get('id')}"
     return usuarios.get(u) or f"user {u}"
+
+
+def nome_vendedor(deal):
+    """Vendedor (closer) do negócio: usa o campo 'Vendedor'; se vazio, cai no dono."""
+    return _nome_usuario(deal.get(VENDEDOR_KEY)) or nome_dono(deal)
 
 
 def valor(deal):
@@ -323,8 +346,8 @@ def resumo(P):
     total = sum(valor(d) for d in g)
     por_dono_val, por_dono_qtd = defaultdict(float), defaultdict(int)
     for d in g:
-        por_dono_val[nome_dono(d)] += valor(d)
-        por_dono_qtd[nome_dono(d)] += 1
+        por_dono_val[nome_vendedor(d)] += valor(d)
+        por_dono_qtd[nome_vendedor(d)] += 1
     por_pipeline = defaultdict(float)
     for d in g:
         por_pipeline[pipelines.get(d.get("pipeline_id"), f"pipeline {d.get('pipeline_id')}")] += valor(d)
@@ -356,7 +379,7 @@ def resumo(P):
     criados = P["criados"]
     por_dono_criados = defaultdict(int)
     for d in criados:
-        por_dono_criados[nome_dono(d)] += 1
+        por_dono_criados[nome_vendedor(d)] += 1
 
     por_canal = {}  # {nome_do_campo: {rotulo: contagem_de_leads}}
 
@@ -780,12 +803,7 @@ def _vendedores(R):
 def _leads_por_id(deals):
     acc = defaultdict(int)
     for d in deals:
-        u = d.get("user_id")
-        if isinstance(u, dict):
-            lab = f"{u.get('name') or usuarios.get(u.get('id'))} (#{u.get('id')})"
-        else:
-            lab = f"{usuarios.get(u, 'user')} (#{u})"
-        acc[lab] += 1
+        acc[nome_vendedor(d)] += 1
     return dict(acc)
 
 
