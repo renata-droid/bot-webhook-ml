@@ -242,6 +242,22 @@ def sem_cs(d):
     nome antes de um eventual ' (#id')."""
     return {k: v for k, v in d.items()
             if str(k).split(" (#")[0].strip().lower() not in EXCLUIR_PESSOAS}
+
+
+# Time de closers (vendas). Todos aparecem nas tabelas por vendedor, mesmo com 0.
+# Casa por nome parcial (ex.: "Nickolas" casa com "Nickolas Ferreira") para não duplicar.
+CLOSERS = ["Christopher", "Renato Benedetti", "Lucas Gallera", "Matheus Medeiros", "Nickolas"]
+
+
+def com_closers(d):
+    """Garante que todo closer apareça no dicionário (0 se não houver dado),
+    sem duplicar quando o nome no CRM for mais completo."""
+    out = dict(d)
+    for c in CLOSERS:
+        cl = c.lower()
+        if not any(cl in str(k).lower() or str(k).lower() in cl for k in out):
+            out[c] = 0
+    return out
 # Opções do campo nativo "channel" (canal de marketing configurado na conta)
 canal_opts = {}
 for fld in deal_fields:
@@ -952,9 +968,10 @@ def gerar_xlsx(caminho):
     wv = wb.create_sheet("Vendedores")
     wv.sheet_view.showGridLines = False
     wv.cell(1, 1, "Vendedores").font = Font(name=F_NAME, bold=True, size=16, color=NAVY)
-    fim_g = escreve(wv, 3, 1, "Ganho por vendedor", sem_cs(RA["por_dono_val"]), sem_cs(RB["por_dono_val"]))
+    fim_g = escreve(wv, 3, 1, "Ganho por vendedor",
+                    com_closers(sem_cs(RA["por_dono_val"])), com_closers(sem_cs(RB["por_dono_val"])))
     escreve(wv, 3, 6, "Nº de ganhos por vendedor",
-            sem_cs(RA["por_dono_qtd"]), sem_cs(RB["por_dono_qtd"]), moeda=False)
+            com_closers(sem_cs(RA["por_dono_qtd"])), com_closers(sem_cs(RB["por_dono_qtd"])), moeda=False)
     # gráfico de barras: ganho por vendedor (2025 x 2026)
     if fim_g > 4:
         ch = BarChart(); ch.type = "bar"; ch.title = f"Ganho por vendedor  {L} x {R}"
@@ -969,14 +986,16 @@ def gerar_xlsx(caminho):
     wt.sheet_view.showGridLines = False
     wt.cell(1, 1, "Toques (atividades)").font = Font(name=F_NAME, bold=True, size=16, color=NAVY)
     escreve(wt, 3, 1, "Por tipo", RA["ativ_tipo"], RB["ativ_tipo"], moeda=False, largura0=22)
-    escreve(wt, 3, 6, "Por pessoa", sem_cs(RA["ativ_user"]), sem_cs(RB["ativ_user"]), moeda=False)
+    escreve(wt, 3, 6, "Por pessoa",
+            com_closers(sem_cs(RA["ativ_user"])), com_closers(sem_cs(RB["ativ_user"])), moeda=False)
 
     # ---- Aba LEADS E CANAIS ----
     wl = wb.create_sheet("Leads e Canais")
     wl.sheet_view.showGridLines = False
     wl.cell(1, 1, "Leads: volume e canal").font = Font(name=F_NAME, bold=True, size=16, color=NAVY)
     r = escreve(wl, 3, 1, "Leads criados por vendedor",
-                sem_cs(RA["por_dono_criados"]), sem_cs(RB["por_dono_criados"]), moeda=False)
+                com_closers(sem_cs(RA["por_dono_criados"])),
+                com_closers(sem_cs(RB["por_dono_criados"])), moeda=False)
     r += 3
     for nome in sorted(set(RA["por_canal"]) | set(RB["por_canal"])):
         r = escreve(wl, r, 1, f"Leads por “{nome}”",
