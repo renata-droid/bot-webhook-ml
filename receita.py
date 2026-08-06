@@ -360,13 +360,22 @@ def casar(entrada: str, top: int, saida: str) -> None:
                 "WHERE e.uf=? AND (e.municipio_norm=? OR e.municipio_norm='') "
                 f"AND ({like})", params).fetchall()
 
+        pont = sorted(((_pontuar(nick, e["nome_fantasia"], e["razao"]), e) for e in cand),
+                      key=lambda x: x[0], reverse=True)
         melhor, melhor_s, segundo_s = None, 0.0, 0.0
-        for e in cand:
-            s = _pontuar(nick, e["nome_fantasia"], e["razao"])
-            if s > melhor_s:
-                melhor_s, segundo_s, melhor = s, melhor_s, e
-            elif s > segundo_s:
-                segundo_s = s
+        if pont:
+            melhor_s, melhor = pont[0]
+            base = melhor["cnpj_basico"]
+            # mesma empresa (matriz+filial) nao e "empate": prefere a matriz
+            for s, e in pont:
+                if e["cnpj_basico"] == base and e["matriz_filial"] == "1":
+                    melhor = e
+                    break
+            # 2o lugar so conta se for OUTRA empresa (cnpj diferente)
+            for s, e in pont[1:]:
+                if e["cnpj_basico"] != base:
+                    segundo_s = s
+                    break
 
         # dois candidatos quase empatados = arriscado -> nao preenche, marca p/ revisar
         ambiguo = melhor_s >= 0.5 and segundo_s >= 0.5 and (melhor_s - segundo_s) < 0.15
