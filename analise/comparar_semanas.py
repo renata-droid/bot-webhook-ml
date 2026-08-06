@@ -426,6 +426,26 @@ def resumo(P):
         por_sdr_ganho_val[nome_sdr(d)] += valor(d)
         por_sdr_ganho_qtd[nome_sdr(d)] += 1
 
+    # COHORT: dos leads CRIADOS na semana, qual o desfecho ATUAL do MESMO negócio
+    # (ganho / perdido / ainda aberto). Isso liga esforço -> resultado de verdade.
+    cohort_sdr = {}
+    for d in criados:
+        nm = nome_sdr(d)
+        rn = next((rr for rr in SDR_ROSTER if _casa(rr, nm)), None)
+        if rn is None:
+            continue
+        c = cohort_sdr.setdefault(rn, {"leads": 0, "ganhos": 0, "perdidos": 0,
+                                       "abertos": 0, "valor": 0.0})
+        c["leads"] += 1
+        st = d.get("status")
+        if st == "won":
+            c["ganhos"] += 1
+            c["valor"] += valor(d)
+        elif st == "lost":
+            c["perdidos"] += 1
+        else:
+            c["abertos"] += 1
+
     por_canal = {}  # {nome_do_campo: {rotulo: contagem_de_leads}}
 
     def _acc_canal(nome, getter):
@@ -462,6 +482,7 @@ def resumo(P):
         "por_sdr_criados": dict(por_sdr_criados),
         "por_sdr_ganho_val": dict(por_sdr_ganho_val),
         "por_sdr_ganho_qtd": dict(por_sdr_ganho_qtd),
+        "cohort_sdr": cohort_sdr,
         "por_pipeline": dict(por_pipeline),
         "por_campo": por_campo,
         "por_canal": por_canal,
@@ -997,6 +1018,32 @@ def gerar_xlsx(caminho):
             ws.column_dimensions[chr(64 + c0 + j)].width = 14
         return r  # última linha escrita
 
+    def escreve_cohort(ws, r0, c0, titulo, cohort):
+        ws.cell(r0, c0, titulo).font = Font(name=F_NAME, bold=True, size=12, color=NAVY)
+        r = r0 + 1
+        cabecalho(ws, r, c0, ["SDR", "Leads criados", "Viraram venda",
+                              "Em aberto", "Perdidos", "R$ ganho", "Conv %"])
+        for i, n in enumerate(SDR_ROSTER, 1):
+            c = cohort.get(n, {"leads": 0, "ganhos": 0, "perdidos": 0, "abertos": 0, "valor": 0.0})
+            r += 1
+            conv = (c["ganhos"] / c["leads"]) if c["leads"] else None
+            fill = zebra if i % 2 == 0 else None
+            linha = [n, c["leads"], c["ganhos"], c["abertos"], c["perdidos"], c["valor"], conv]
+            for j, val in enumerate(linha):
+                cell = ws.cell(r, c0 + j, val)
+                cell.alignment = AL if j == 0 else AR
+                if j == 5:
+                    cell.number_format = 'R$ #,##0'
+                if j == 6 and conv is not None:
+                    cell.number_format = '0%'
+                cell.border = bd
+                if fill:
+                    cell.fill = fill
+        ws.column_dimensions[chr(64 + c0)].width = 22
+        for j in range(1, 7):
+            ws.column_dimensions[chr(64 + c0 + j)].width = 13
+        return r
+
     # ---- Aba PAINEL ----
     ws = wb.active; ws.title = "Painel"
     ws.sheet_view.showGridLines = False
@@ -1061,15 +1108,30 @@ def gerar_xlsx(caminho):
     ws = wb.create_sheet("SDR")
     ws.sheet_view.showGridLines = False
     ws.cell(1, 1, "SDR (pré-vendas)").font = Font(name=F_NAME, bold=True, size=16, color=NAVY)
-    fim_sdr = escreve(ws, 3, 1, "Leads gerados por SDR",
+    ws.cell(2, 1, "Fotos SEPARADAS: 'leads criados na semana' ≠ 'vendas ganhas na semana' "
+                  "(estas vêm de leads antigos). Para ligar lead → venda, veja o COHORT abaixo.").font = \
+        Font(name=F_NAME, italic=True, size=9, color=GRAY)
+
+    fim_sdr = escreve(ws, 4, 1, "Leads criados na semana (SDR)",
                       so_roster(RA["por_sdr_criados"], SDR_ROSTER),
                       so_roster(RB["por_sdr_criados"], SDR_ROSTER), moeda=False)
-    escreve(ws, 3, 6, "Vendas (R$) vindas dos leads do SDR",
+    escreve(ws, 4, 6, "Vendas ganhas na semana (SDR) — R$",
             so_roster(RA["por_sdr_ganho_val"], SDR_ROSTER),
             so_roster(RB["por_sdr_ganho_val"], SDR_ROSTER), largura0=26)
-    escreve(ws, fim_sdr + 3, 1, "Nº de vendas por SDR (lead dele que fechou)",
-            so_roster(RA["por_sdr_ganho_qtd"], SDR_ROSTER),
-            so_roster(RB["por_sdr_ganho_qtd"], SDR_ROSTER), moeda=False)
+    fim2 = escreve(ws, fim_sdr + 3, 1, "Nº de vendas ganhas na semana (SDR)",
+                   so_roster(RA["por_sdr_ganho_qtd"], SDR_ROSTER),
+                   so_roster(RB["por_sdr_ganho_qtd"], SDR_ROSTER), moeda=False)
+
+    # ---- COHORT: liga o MESMO negócio (lead criado -> desfecho atual) ----
+    per = f"{ARGS.inicio.replace('-', '/')}–{ARGS.fim.replace('-', '/')}"
+    rc = fim2 + 3
+    ws.cell(rc, 1, "COHORT — leads criados na semana e o desfecho ATUAL do mesmo negócio").font = \
+        Font(name=F_NAME, bold=True, size=13, color=NAVY)
+    ws.cell(rc + 1, 1, "Aqui SIM liga esforço → resultado: dos leads que o SDR criou, quantos já "
+                       "viraram venda. ⚠️ O cohort de " + R + " está 'verde' (poucos dias para maturar).").font = \
+        Font(name=F_NAME, italic=True, size=9, color=GRAY)
+    rc2 = escreve_cohort(ws, rc + 3, 1, f"Cohort {L} — leads criados em {per}/{L}", RA["cohort_sdr"])
+    escreve_cohort(ws, rc2 + 3, 1, f"Cohort {R} — leads criados em {per}/{R}  (imaturo)", RB["cohort_sdr"])
 
     # ---- Aba TOQUES ----
     wt = wb.create_sheet("Toques")
