@@ -155,11 +155,14 @@ def brl(v):
     return "R$ " + f"{v:,.0f}".replace(",", ".")
 
 
+usuarios = {}  # {id: nome} — preenchido depois de conectar (map ID -> nome)
+
+
 def nome_dono(deal):
     u = deal.get("user_id")
     if isinstance(u, dict):
-        return u.get("name") or f"user {u.get('id')}"
-    return f"user {u}"
+        return u.get("name") or usuarios.get(u.get("id")) or f"user {u.get('id')}"
+    return usuarios.get(u) or f"user {u}"
 
 
 def valor(deal):
@@ -216,6 +219,7 @@ for fld in deal_fields:
 
 estagios = {s["id"]: s for s in (http_get_all("/stages") or [])}
 pipelines = {p["id"]: p["name"] for p in (http_get_all("/pipelines") or [])}
+usuarios.update({u["id"]: u.get("name") for u in (http_get_all("/users") or [])})
 
 # Tipos de atividade -> nome legível (Ligação, E-mail, Reunião, Tarefa...)
 tipos_ativ = {t.get("key_string"): t.get("name")
@@ -343,7 +347,10 @@ def resumo(P):
     for a in P["atividades"]:
         tp = a.get("type") or "?"
         ativ_tipo[tipos_ativ.get(tp, tp)] += 1
-        ativ_user[a.get("owner_name") or f"user {a.get('assigned_to_user_id')}"] += 1
+        pessoa = (a.get("owner_name") or usuarios.get(a.get("owner_id"))
+                  or usuarios.get(a.get("user_id"))
+                  or usuarios.get(a.get("assigned_to_user_id")) or "?")
+        ativ_user[pessoa] += 1
 
     # LEADS (negócios criados) por canal/origem e por dono
     criados = P["criados"]
@@ -774,7 +781,10 @@ def _leads_por_id(deals):
     acc = defaultdict(int)
     for d in deals:
         u = d.get("user_id")
-        lab = f"{u.get('name')} (#{u.get('id')})" if isinstance(u, dict) else f"user #{u}"
+        if isinstance(u, dict):
+            lab = f"{u.get('name') or usuarios.get(u.get('id'))} (#{u.get('id')})"
+        else:
+            lab = f"{usuarios.get(u, 'user')} (#{u})"
         acc[lab] += 1
     return dict(acc)
 
