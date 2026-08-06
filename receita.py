@@ -33,11 +33,13 @@ REGIOES = {
 import argparse
 import csv
 import io
+import re
 import sqlite3
 import sys
 import time
 import unicodedata
 import zipfile
+from difflib import SequenceMatcher
 from pathlib import Path
 
 import requests
@@ -268,21 +270,47 @@ def carregar(ufs_arg: str | None) -> None:
 # --------------------------------------------------------------------------- #
 # Casamento seller -> CNPJ + preenchimento
 # --------------------------------------------------------------------------- #
+_LIXO = {"LTDA", "ME", "EPP", "EIRELI", "MEI", "COMERCIO", "COMERCIAL", "LOJA",
+         "LOJAS", "STORE", "SHOP", "BRASIL", "OFICIAL", "SA", "COM", "BR", "WWW",
+         "IMPORTS", "IMPORTADOS", "DISTRIBUIDORA", "GRUPO", "EIRELLI",
+         "DE", "DA", "DO", "DOS", "DAS", "E"}
+
+
+def _partes(s: str) -> list:
+    # separa por nao-alfanumerico E entre letras/digitos:
+    # "PITSTOP2IRMAOS" -> [PITSTOP, 2, IRMAOS];  "CELLTEK_SOLUTIONS" -> [CELLTEK, SOLUTIONS]
+    bruto = re.findall(r"[A-Z]+|[0-9]+", norm(s))
+    return [p for p in bruto if p not in _LIXO and len(p) > 1]
+
+
 def _tokens(s: str) -> set:
-    lixo = {"LTDA", "ME", "EPP", "EIRELI", "COMERCIO", "COMERCIAL", "LOJA",
-            "STORE", "SHOP", "BRASIL", "OFICIAL", "SA", "DE", "DA", "DO", "E"}
-    return {t for t in norm(s).split() if t not in lixo and len(t) > 1}
+    return set(_partes(s))
 
 
-def _similaridade(nick: str, *nomes: str) -> float:
-    a = _tokens(nick)
-    if not a:
+def _compact(s: str) -> str:
+    return "".join(_partes(s))
+
+
+def _pontuar(nick: str, *nomes: str) -> float:
+    """0..1 — quao bem o apelido do seller casa com nome fantasia / razao social."""
+    nt, nc = _tokens(nick), _compact(nick)
+    if not nt and not nc:
         return 0.0
     melhor = 0.0
     for nome in nomes:
-        b = _tokens(nome)
-        if b:
-            melhor = max(melhor, len(a & b) / len(a))
+        if not nome:
+            continue
+        ct, cc = _tokens(nome), _compact(nome)
+        s = 0.0
+        if nt and ct:
+            inter = len(nt & ct)
+            s = max(s, inter / len(nt), inter / len(nt | ct))   # cobertura + jaccard
+        if len(nc) >= 4 and cc:
+            if nc in cc or cc in nc:
+                s = max(s, 0.95)                                # apelido colado dentro do nome
+            else:
+                s = max(s, SequenceMatcher(None, nc, cc).ratio())  # tolera erro de grafia
+        melhor = max(melhor, s)
     return melhor
 
 
@@ -321,26 +349,30 @@ def casar(entrada: str, top: int, saida: str) -> None:
             "SELECT * FROM estab WHERE uf=? AND (municipio_norm=? OR municipio_norm='')",
             (uf, cidade)).fetchall()
 
-        melhor, melhor_s = None, 0.0
+        melhor, melhor_s, segundo_s = None, 0.0, 0.0
         for e in cand:
             emp = con.execute(
                 "SELECT razao_social, porte FROM empresa WHERE cnpj_basico=?",
                 (e["cnpj_basico"],)).fetchone()
             razao = emp["razao_social"] if emp else ""
-            s = _similaridade(nick, e["nome_fantasia"], razao)
+            s = _pontuar(nick, e["nome_fantasia"], razao)
             if s > melhor_s:
-                melhor_s, melhor = s, (e, emp)
+                melhor_s, segundo_s, melhor = s, melhor_s, (e, emp)
+            elif s > segundo_s:
+                segundo_s = s
+
+        # dois candidatos quase empatados = arriscado -> nao preenche, marca p/ revisar
+        ambiguo = melhor_s >= 0.5 and segundo_s >= 0.5 and (melhor_s - segundo_s) < 0.15
 
         row = {
             "nickname": nick, "uf": uf, "cidade": L.get("cidade"),
             "transacoes": L.get("transacoes"), "score": L.get("score"),
             "cnpj": "", "razao_social": "", "nome_fantasia": "", "porte": "",
             "regime": "", "telefone": "", "email": "", "municipio_receita": "",
-            "confianca": "SEM MATCH" if not cand else "AMBIGUO",
-            "candidatos": len(cand), "permalink": L.get("permalink"),
+            "confianca": "", "candidatos": len(cand), "permalink": L.get("permalink"),
         }
 
-        if melhor and melhor_s >= 0.5:
+        if melhor and melhor_s >= 0.5 and not ambiguo:
             e, emp = melhor
             sim = con.execute(
                 "SELECT opcao_simples, opcao_mei FROM simples WHERE cnpj_basico=?",
@@ -355,8 +387,10 @@ def casar(entrada: str, top: int, saida: str) -> None:
                 "telefone": tel,
                 "email": e["email"],
                 "municipio_receita": e["municipio"],
-                "confianca": "ALTA" if melhor_s >= 0.8 else "MEDIA",
+                "confianca": "ALTA" if melhor_s >= 0.85 else "MEDIA",
             })
+        else:
+            row["confianca"] = "SEM MATCH" if not cand else ("AMBIGUO" if ambiguo else "REVISAR")
         resultado.append(row)
 
     campos = ["nickname", "uf", "cidade", "transacoes", "score", "cnpj",
