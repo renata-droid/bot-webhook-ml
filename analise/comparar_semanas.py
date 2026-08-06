@@ -276,20 +276,35 @@ def sem_cs(d):
             if str(k).split(" (#")[0].strip().lower() not in EXCLUIR_PESSOAS}
 
 
-# Time de closers (vendas). Todos aparecem nas tabelas por vendedor, mesmo com 0.
-# Casa por nome parcial (ex.: "Nickolas" casa com "Nickolas Ferreira") para não duplicar.
+import unicodedata
+
+# Times fixos: todos aparecem nas tabelas, mesmo com 0. A comparação de nomes
+# ignora acento e casa por nome parcial (ex.: "Nickolas" ~ "Nickolas Ferreira";
+# "Leticia" ~ "Letícia Silva") para não duplicar linhas.
 CLOSERS = ["Christopher", "Renato Benedetti", "Lucas Gallera", "Matheus Medeiros", "Nickolas"]
+SDRS = ["Gabriel Frizzo", "Leticia"]
+
+
+def _norm(s):
+    return "".join(c for c in unicodedata.normalize("NFD", str(s).lower())
+                   if unicodedata.category(c) != "Mn")
+
+
+def _garantir(d, nomes):
+    out = dict(d)
+    for n in nomes:
+        nn = _norm(n)
+        if not any(nn in _norm(k) or _norm(k) in nn for k in out):
+            out[n] = 0
+    return out
 
 
 def com_closers(d):
-    """Garante que todo closer apareça no dicionário (0 se não houver dado),
-    sem duplicar quando o nome no CRM for mais completo."""
-    out = dict(d)
-    for c in CLOSERS:
-        cl = c.lower()
-        if not any(cl in str(k).lower() or str(k).lower() in cl for k in out):
-            out[c] = 0
-    return out
+    return _garantir(d, CLOSERS)
+
+
+def com_sdrs(d):
+    return _garantir(d, SDRS)
 # Opções do campo nativo "channel" (canal de marketing configurado na conta)
 canal_opts = {}
 for fld in deal_fields:
@@ -1031,11 +1046,14 @@ def gerar_xlsx(caminho):
     ws.sheet_view.showGridLines = False
     ws.cell(1, 1, "SDR (pré-vendas)").font = Font(name=F_NAME, bold=True, size=16, color=NAVY)
     fim_sdr = escreve(ws, 3, 1, "Leads gerados por SDR",
-                      sem_cs(RA["por_sdr_criados"]), sem_cs(RB["por_sdr_criados"]), moeda=False)
+                      com_sdrs(sem_cs(RA["por_sdr_criados"])),
+                      com_sdrs(sem_cs(RB["por_sdr_criados"])), moeda=False)
     escreve(ws, 3, 6, "Vendas (R$) vindas dos leads do SDR",
-            sem_cs(RA["por_sdr_ganho_val"]), sem_cs(RB["por_sdr_ganho_val"]), largura0=26)
+            com_sdrs(sem_cs(RA["por_sdr_ganho_val"])),
+            com_sdrs(sem_cs(RB["por_sdr_ganho_val"])), largura0=26)
     escreve(ws, fim_sdr + 3, 1, "Nº de vendas por SDR (lead dele que fechou)",
-            sem_cs(RA["por_sdr_ganho_qtd"]), sem_cs(RB["por_sdr_ganho_qtd"]), moeda=False)
+            com_sdrs(sem_cs(RA["por_sdr_ganho_qtd"])),
+            com_sdrs(sem_cs(RB["por_sdr_ganho_qtd"])), moeda=False)
 
     # ---- Aba TOQUES ----
     wt = wb.create_sheet("Toques")
