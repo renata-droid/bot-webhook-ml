@@ -24,6 +24,7 @@ d.tabela(["Campo", "Informação"], [
     ["Desfecho na call", "Pagamento no cartão (PF) confirmado + grupo WhatsApp + onboarding para o dia seguinte"],
     ["Status no Pipedrive", "GANHO — R$ 15.997 (8x de R$ 1.999,62) · deal 115090"],
     ["SDR / Buddy", "SDR: Leticia · Buddy/CS: Allana Bueno"],
+    ["Talk-ratio (estimativa)", "≈ Closer 60% × Lead 40% — estimativa por leitura (sem diarização automática)"],
 ])
 
 d.h1("Resumo executivo")
@@ -76,6 +77,10 @@ d.p("~108 min — call longa, típica do Renato, que investe em construir valor.
     "(1:28→1:35) para o casal conversar a sós — e voltaram decididos a pagar no cartão. O ritmo foi "
     "consultivo (perguntas → cliente conclui sozinho), o que sustentou o fechamento mesmo com o preço "
     "acima do esperado.")
+d.p("Talk-ratio (estimativa por leitura): ≈ Closer 60% × Lead 40%. O Renato fez monólogos longos na "
+    "apresentação da metodologia e da prova social, mas abriu bastante espaço para o lead na descoberta. "
+    "Referência de venda consultiva: closer ≤ ~50%. Número exato depende da diarização automática (a "
+    "configurar).", italico=True)
 
 d.h1("⭐ Nota da call (0–10) por critério")
 d.tabela(["Critério", "Nota", "Observação"], [
