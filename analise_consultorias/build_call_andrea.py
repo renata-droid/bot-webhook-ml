@@ -141,6 +141,26 @@ for b in [
 ]:
     d.bullet(b)
 
+d.h1("Anexo — Como as notas são calculadas (0 a 10)")
+d.p("Regra de ouro: 10 é \"impecável + conduziu com maestria\", não apenas \"fez\". Fez bem, com 1 "
+    "detalhe faltando, fica 8–9.")
+d.tabela(["Faixa", "Significado"], [
+    ["9 – 10  Excelente", "Fez tudo e conduziu com maestria, sem falha"],
+    ["7 – 8  Bom", "Fez o essencial bem, com 1 lacuna pequena"],
+    ["5 – 6  Regular", "Fez pela metade / de forma superficial"],
+    ["0 – 4  Fraco", "Não fez, ou fez de forma errada"],
+])
+d.tabela(["Critério", "O que exige o 10", "Cai para 7–8 quando"], [
+    ["Rapport / abertura", "Cria o vínculo ativamente (pessoal + propósito) e define agenda", "Conecta só pelo profissional, ou quem puxa é o lead"],
+    ["Descoberta / diagnóstico", "Puxa a dor antes da solução, levanta números E amplia a dor", "Boa descoberta, mas não amplia/reenquadra a dor"],
+    ["Prova social", "Case do mesmo nicho + número + \"esse seria você\"", "Prova social genérica, sem ser da categoria"],
+    ["Ancoragem de valor", "Preço vira escolha de pagamento; usa custo de oportunidade", "Vende resultado, mas não quantifica o valor"],
+    ["Contorno de objeção", "Antecipa, contorna E confirma que a objeção caiu", "Contorna, mas reativo ou faltou um recurso (ex.: bônus)"],
+    ["Fechamento / próximo passo", "Pede a venda E executa o próximo passo na call", "Fecha, mas o próximo passo fica só \"prometido\""],
+])
+d.p("Nesta call: rapport 9 (conexão mais profissional que pessoal) e contorno 8 (faltou um bônus de "
+    "fechamento) — o restante ficou em 9–10. Média 8,7.", italico=True)
+
 d.p("")
 d.p("Análise a fundo de call individual, no cruzamento call (fala real) ↔ Pipedrive (deal 115090). "
     "Status confirmado pelo código do Google Meet (apa-ydje-tnu). Complementa o compilado de reuniões e "
