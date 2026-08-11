@@ -288,6 +288,7 @@ def main():
             "valor": d.get("value", ""),
             "etiqueta_matheus": "SIM" if tem_etiqueta_closer(d) else "NAO",
             "etapa": etapas.get(d.get("stage_id"), d.get("stage_id") or ""),
+            "motivo_perdido": decodificar(d.get("lost_reason"), "lost_reason", mapa),
         }
         # datas
         for nome, key in DATA_FIELDS:
@@ -317,7 +318,7 @@ def main():
         time.sleep(PAUSA)
 
     # ordem das colunas
-    cols = ["deal_id", "titulo", "status", "etapa", "valor", "etiqueta_matheus"]
+    cols = ["deal_id", "titulo", "status", "etapa", "motivo_perdido", "valor", "etiqueta_matheus"]
     cols += [n for n, _ in DATA_FIELDS]
     cols += ["produto_apresentado", "produto_vendido"]
     cols += [n for n, _ in PERFIL_FIELDS]
