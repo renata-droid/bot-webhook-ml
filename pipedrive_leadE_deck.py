@@ -131,22 +131,40 @@ def _tier(v):
     return None
 
 
+def modelo_venda(fat_mkt, fat_fis, onde):
+    """Online / Fisico / Hibrido / x  (prioriza o campo 'Onde Vende', senao infere)."""
+    o = (onde or "").lower()
+    if "dois" in o: return "Híbrido"
+    if "somente nos marketplaces" in o: return "Online"
+    if "somente no físico" in o: return "Físico"
+    if "nenhum" in o: return "x"
+    vende_online = _tier(fat_mkt) is not None
+    vende_fisico = _tier(fat_fis) is not None
+    if vende_online and vende_fisico: return "Híbrido"
+    if vende_online: return "Online"
+    if vende_fisico: return "Físico"
+    return "x"
+
+
 def classificar_deck(cargo, estado, fat_mkt, fat_fis):
+    """Retorna (grade, detalhe, canal). Regra: vende online -> matriz Marketplaces;
+    senao -> matriz Fisico (hibrido usa Marketplaces, que e o canal-foco da ICOMM)."""
     c = (cargo or "").lower()
     grupo = "S" if c in _CARGO_S else ("G" if c in _CARGO_G else None)
     if grupo is None:
-        return "E", "cargo <= Supervisor"
+        return "E", "cargo <= Supervisor", "-"
     if (estado or "").lower() not in _ESTADOS_VAL:
-        return "E", "estado nao valido"
+        return "E", "estado nao valido", "-"
     tm, tf = _tier(fat_mkt), _tier(fat_fis)
     if tm is None and tf is None:
-        return "F", "nao vende em nenhum canal"
+        return "F", "nao vende em nenhum canal", "-"
     g_mkt = _MKT[grupo][tm] if tm else None
     g_fis = _FIS[grupo][tf] if tf else None
     grade = g_mkt or g_fis
-    det = (f"mkt=tier{tm}->{g_mkt}" if tm else "mkt=nao vende")
-    det += (f" | fis=tier{tf}->{g_fis}" if tf else " | fis=nao vende")
-    return grade, det
+    canal = "Marketplaces" if g_mkt else "Físico"
+    det = (f"online=tier{tm}->{g_mkt}" if tm else "online=nao vende")
+    det += (f" | fisico=tier{tf}->{g_fis}" if tf else " | fisico=nao vende")
+    return grade, det, canal
 
 
 def no_periodo(d):
@@ -173,7 +191,9 @@ def main():
         estado = opt(d.get(K_ESTADO), K_ESTADO, mapa)
         fmkt = opt(d.get(K_FAT_MKT), K_FAT_MKT, mapa)
         ffis = opt(d.get(K_FAT_FIS), K_FAT_FIS, mapa)
-        deck, det = classificar_deck(cargo, estado, fmkt, ffis)
+        onde = opt(d.get(K_ONDE), K_ONDE, mapa)
+        deck, det, canal = classificar_deck(cargo, estado, fmkt, ffis)
+        modelo = modelo_venda(fmkt, ffis, onde)
         dist[deck] += 1
         closer = d.get(K_VENDEDOR)
         if isinstance(closer, dict):
@@ -184,23 +204,26 @@ def main():
             "closer": closer, "status": d.get("status", ""),
             "criado_em": (d.get("add_time") or "")[:10],
             "estado": estado, "cargo": cargo,
-            "fat_marketplaces": fmkt, "fat_fisico": ffis,
-            "onde_vende": opt(d.get(K_ONDE), K_ONDE, mapa),
+            # faturamento: online (marketplaces), fisico e o modelo (online/fisico/hibrido)
+            "fat_online": fmkt or "x", "fat_fisico": ffis or "x",
+            "modelo": modelo, "onde_vende": onde or "x",
             "produto_apresentado": opt(d.get(K_PROD_APR), K_PROD_APR, mapa),
-            "lead_pipe": "E", "deck_grade": deck,
+            "lead_pipe": "E", "deck_grade": deck, "deck_canal": canal,
             "bate_E": "SIM" if deck == "E" else "NAO",
             "deck_detalhe": det, "valor": d.get("value", ""),
         })
 
     linhas.sort(key=lambda x: ("ABCDEF".index(x["deck_grade"]) if x["deck_grade"] in "ABCDEF" else 9))
     cols = ["deal_id", "titulo", "closer", "status", "criado_em", "estado", "cargo",
-            "fat_marketplaces", "fat_fisico", "onde_vende", "produto_apresentado",
-            "lead_pipe", "deck_grade", "bate_E", "deck_detalhe", "valor"]
+            "fat_online", "fat_fisico", "modelo", "onde_vende", "produto_apresentado",
+            "lead_pipe", "deck_grade", "deck_canal", "bate_E", "deck_detalhe", "valor"]
     with open("leadE_x_deck.csv", "w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
         w.writeheader(); w.writerows(linhas)
 
     mql = sum(dist[g] for g in "ABCD")
+    falsos = [l for l in linhas if l["deck_grade"] in "ABCD"]
+    por_modelo = Counter(l["modelo"] for l in falsos)
     print("-" * 60)
     print("Reclassificacao dos Lead E pelo deck:")
     for g in "ABCDEF":
@@ -209,6 +232,12 @@ def main():
     print("-" * 60)
     print(f"Bate E (E de verdade): {dist['E']}/{len(E)}")
     print(f"FALSOS E (eram MQL A-D, lead bom descartado): {mql}")
+    print(f"  por modelo de venda: {dict(por_modelo)}")
+    if falsos:
+        print("  exemplos (deal | deck | modelo | online/fisico):")
+        for l in falsos[:12]:
+            print(f"    {l['deal_id']} | {l['deck_grade']} | {l['modelo']:<7} | "
+                  f"{l['fat_online']} / {l['fat_fisico']}")
     print("Arquivo: leadE_x_deck.csv")
 
 
