@@ -38,6 +38,13 @@ import time
 
 import requests
 
+try:
+    from docx import Document
+    from docx.shared import Pt
+    TEM_DOCX = True
+except ImportError:
+    TEM_DOCX = False
+
 # =============================================================================
 # CONFIG
 # =============================================================================
@@ -149,6 +156,36 @@ def decodificar(valor, key, mapa):
     return opcoes.get(str(valor), valor)
 
 
+def salvar_docx(linhas, cols, caminho="leadA_matheus.docx"):
+    """Gera um Word com uma secao por deal (tabela chave/valor)."""
+    if not TEM_DOCX:
+        print("!! python-docx nao instalado: pule com 'pip install python-docx' "
+              "para gerar o Word.")
+        return
+    doc = Document()
+    doc.add_heading("Lead A - Closer Matheus Medeiros", level=0)
+    doc.add_paragraph(f"{len(linhas)} negocios | gerado do Pipedrive")
+    for l in linhas:
+        doc.add_heading(f"deal/{l.get('deal_id','')} - {l.get('titulo','')}", level=1)
+        if "erro" in l:
+            doc.add_paragraph("NAO ENCONTRADO")
+            continue
+        t = doc.add_table(rows=0, cols=2)
+        t.style = "Light Grid Accent 1"
+        for c in cols:
+            if c == "deal_id":
+                continue
+            valor = l.get(c, "")
+            if valor in ("", None):
+                continue
+            row = t.add_row().cells
+            row[0].text = c.replace("_", " ").title()
+            row[1].text = str(valor)
+        doc.add_paragraph("")
+    doc.save(caminho)
+    print(f"Word: {caminho}")
+
+
 def tem_etiqueta_closer(deal):
     """True se a etiqueta Matheus Medeiros (660) esta no negocio."""
     ids = deal.get("label_ids")
@@ -228,6 +265,7 @@ def main():
             w.writerow(l)
     with open("leadA_matheus.json", "w", encoding="utf-8") as f:
         json.dump(linhas, f, ensure_ascii=False, indent=2)
+    salvar_docx(linhas, cols)
 
     achou = sum(1 for l in linhas if "erro" not in l)
     com_etq = sum(1 for l in linhas if l.get("etiqueta_matheus") == "SIM")

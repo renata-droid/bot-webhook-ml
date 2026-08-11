@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+leadA_matheus.csv
+leadA_matheus.json
+leadA_matheus.docx
