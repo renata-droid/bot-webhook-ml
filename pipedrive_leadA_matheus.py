@@ -137,6 +137,12 @@ def carregar_mapa_opcoes():
     return mapa
 
 
+def carregar_etapas():
+    """id da etapa -> nome (para saber 'onde esta' o negocio no funil)."""
+    return {s.get("id"): s.get("name")
+            for s in (api_get("stages", {"limit": 500}).get("data") or [])}
+
+
 def decodificar(valor, key, mapa):
     """Traduz o valor de um campo enum/set para texto; senao devolve como esta."""
     if valor is None or valor == "":
@@ -264,6 +270,7 @@ def main():
     if not mapa:
         print("!! Nao consegui carregar dealFields (token/conexao?). Abortando.")
         return
+    etapas = carregar_etapas()
 
     linhas = []
     for did in targets:
@@ -280,6 +287,7 @@ def main():
             "status": d.get("status", ""),
             "valor": d.get("value", ""),
             "etiqueta_matheus": "SIM" if tem_etiqueta_closer(d) else "NAO",
+            "etapa": etapas.get(d.get("stage_id"), d.get("stage_id") or ""),
         }
         # datas
         for nome, key in DATA_FIELDS:
@@ -309,7 +317,7 @@ def main():
         time.sleep(PAUSA)
 
     # ordem das colunas
-    cols = ["deal_id", "titulo", "status", "valor", "etiqueta_matheus"]
+    cols = ["deal_id", "titulo", "status", "etapa", "valor", "etiqueta_matheus"]
     cols += [n for n, _ in DATA_FIELDS]
     cols += ["produto_apresentado", "produto_vendido"]
     cols += [n for n, _ in PERFIL_FIELDS]
