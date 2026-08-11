@@ -57,7 +57,7 @@ CLOSER_LABEL_ID = 660          # "Matheus Medeiros"
 CLOSER_LABEL_NOME = "Matheus Medeiros"
 
 # os deals a puxar (pode sobrescrever pela linha de comando)
-TARGETS_PADRAO = [114715, 114805, 114841, 114880, 115051, 115054, 115453, 115645]
+TARGETS_PADRAO = [114715, 114805, 114841, 114880, 115051, 115054, 115453, 115645, 115026]
 
 # campos que compoem o "perfil do lead" (nome_amigavel -> key da API)
 PERFIL_FIELDS = [
