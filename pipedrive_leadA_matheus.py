@@ -288,7 +288,10 @@ def main():
             "valor": d.get("value", ""),
             "etiqueta_matheus": "SIM" if tem_etiqueta_closer(d) else "NAO",
             "etapa": etapas.get(d.get("stage_id"), d.get("stage_id") or ""),
+            # "Motivo da Perda" (dropdown) — costuma vir vazio
             "motivo_perdido": decodificar(d.get("lost_reason"), "lost_reason", mapa),
+            # "Descricao DETALHADA da Perda" (texto livre, id 282) — o motivo real
+            "descricao_perda": (d.get("c1056dfb2bc711a3a2dc66b4dc9c83a436a36a84") or "").replace("\n", " ").strip(),
         }
         # datas
         for nome, key in DATA_FIELDS:
@@ -318,7 +321,8 @@ def main():
         time.sleep(PAUSA)
 
     # ordem das colunas
-    cols = ["deal_id", "titulo", "status", "etapa", "motivo_perdido", "valor", "etiqueta_matheus"]
+    cols = ["deal_id", "titulo", "status", "etapa", "motivo_perdido", "descricao_perda",
+            "valor", "etiqueta_matheus"]
     cols += [n for n, _ in DATA_FIELDS]
     cols += ["produto_apresentado", "produto_vendido"]
     cols += [n for n, _ in PERFIL_FIELDS]
