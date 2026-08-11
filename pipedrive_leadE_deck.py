@@ -44,15 +44,18 @@ K_PROD_APR  = "810aeffbcd6e447f89e9b82d1a977738a10f2f86"
 K_VENDEDOR  = "db2c9632937b836eae914bb3749d19f3b129b31d"
 PAUSA = 0.2
 
-# ---- matrizes do deck V5 (estado valido) ----
-_MKT = {"S": {1: "D", 2: "B", 3: "B", 4: "A", 5: "A", 6: "A", 7: "A", 8: "A"},
-        "G": {1: "E", 2: "D", 3: "B", 4: "B", 5: "B", 6: "B", 7: "B", 8: "D"}}
-_FIS = {"S": {1: "E", 2: "D", 3: "D", 4: "C", 5: "C", 6: "C", 7: "C", 8: "C"},
-        "G": {1: "E", 2: "E", 3: "E", 4: "E", 5: "E", 6: "E", 7: "D", 8: "D"}}
+# ---- matrizes do deck V5_1 (estado valido); regra: MAIOR nota entre os canais ----
+# Marketplaces: 10 faixas (0-5k,5-15k,15-40k,40-60k,60-100k,100-300k,300-500k,500k-1M,1M-5M,>5M)
+_MKT = {"S": ["E", "E", "C", "B", "B", "A", "A", "A", "A", "A"],
+        "G": ["E", "E", "E", "E", "D", "D", "D", "D", "D", "D"]}
+# Fisico: 8 faixas (0-15k,15-60k,60-100k,100-300k,300-500k,500k-1M,1M-5M,>5M)
+_FIS = {"S": ["E", "E", "E", "B", "A", "A", "A", "A"],
+        "G": ["E", "E", "E", "D", "D", "D", "D", "D"]}
 _ESTADOS_VAL = {"são paulo", "minas gerais", "paraná", "rio grande do sul",
                 "santa catarina", "distrito federal", "rio de janeiro"}
 _CARGO_S = {"sócio ou fundador", "diretor"}
 _CARGO_G = {"gerente", "coordenador"}
+_ORD = {"A": 0, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5}
 
 
 def base_url():
@@ -113,21 +116,39 @@ def opt(valor, key, mapa):
     return mapa.get(key, {}).get(str(valor), valor)
 
 
-def _tier(v):
+def _tier_mkt(v):
     if not v:
         return None
     v = v.lower()
     if "ainda não" in v or "não temos" in v or "não vendemos" in v:
         return None
-    if "acima de r$ 5" in v: return 8
-    if "1 milhão a r$ 5" in v: return 7
-    if "500.000 a r$ 1" in v: return 6
-    if "300.000 a r$ 500" in v: return 5
-    if "100.000 a r$ 300" in v: return 4
-    if "60.000 a r$ 100" in v: return 3
-    if ("15.000 a r$ 40" in v or "40.000 a r$ 60" in v
-            or "15.000 a r$ 60" in v or "0 a r$ 60" in v): return 2
-    if "0 a r$ 5.000" in v or "5.000 a r$ 15" in v or "0 a r$ 15" in v: return 1
+    if "acima de r$ 5" in v: return 9
+    if "1 milhão a r$ 5" in v: return 8
+    if "500.000 a r$ 1" in v: return 7
+    if "300.000 a r$ 500" in v: return 6
+    if "100.000 a r$ 300" in v: return 5
+    if "60.000 a r$ 100" in v: return 4
+    if "40.000 a r$ 60" in v: return 3
+    if "15.000 a r$ 40" in v or "15.000 a r$ 60" in v: return 2
+    if "5.000 a r$ 15" in v: return 1
+    if "0 a r$ 5.000" in v or "0 a r$ 15" in v: return 0
+    return None
+
+
+def _tier_fis(v):
+    if not v:
+        return None
+    v = v.lower()
+    if "ainda não" in v or "não temos" in v or "não vendemos" in v:
+        return None
+    if "acima de r$ 5" in v: return 7
+    if "1 milhão a r$ 5" in v: return 6
+    if "500.000 a r$ 1" in v: return 5
+    if "300.000 a r$ 500" in v: return 4
+    if "100.000 a r$ 300" in v: return 3
+    if "60.000 a r$ 100" in v: return 2
+    if "15.000 a r$ 60" in v or "15.000 a r$ 40" in v or "40.000 a r$ 60" in v: return 1
+    if "0 a r$ 15" in v or "0 a r$ 5.000" in v or "5.000 a r$ 15" in v or "0 a r$ 60" in v: return 0
     return None
 
 
@@ -138,8 +159,8 @@ def modelo_venda(fat_mkt, fat_fis, onde):
     if "somente nos marketplaces" in o: return "Online"
     if "somente no físico" in o: return "Físico"
     if "nenhum" in o: return "x"
-    vende_online = _tier(fat_mkt) is not None
-    vende_fisico = _tier(fat_fis) is not None
+    vende_online = _tier_mkt(fat_mkt) is not None
+    vende_fisico = _tier_fis(fat_fis) is not None
     if vende_online and vende_fisico: return "Híbrido"
     if vende_online: return "Online"
     if vende_fisico: return "Físico"
@@ -147,23 +168,24 @@ def modelo_venda(fat_mkt, fat_fis, onde):
 
 
 def classificar_deck(cargo, estado, fat_mkt, fat_fis):
-    """Retorna (grade, detalhe, canal). Regra: vende online -> matriz Marketplaces;
-    senao -> matriz Fisico (hibrido usa Marketplaces, que e o canal-foco da ICOMM)."""
+    """Retorna (grade, detalhe, canal). Regra V5_1: nota pela matriz Marketplaces (fat
+    online) E pela matriz Fisico (fat fisico) -> fica com a MAIOR das duas."""
     c = (cargo or "").lower()
     grupo = "S" if c in _CARGO_S else ("G" if c in _CARGO_G else None)
     if grupo is None:
         return "E", "cargo <= Supervisor", "-"
     if (estado or "").lower() not in _ESTADOS_VAL:
         return "E", "estado nao valido", "-"
-    tm, tf = _tier(fat_mkt), _tier(fat_fis)
+    tm, tf = _tier_mkt(fat_mkt), _tier_fis(fat_fis)
     if tm is None and tf is None:
         return "F", "nao vende em nenhum canal", "-"
-    g_mkt = _MKT[grupo][tm] if tm else None
-    g_fis = _FIS[grupo][tf] if tf else None
-    grade = g_mkt or g_fis
-    canal = "Marketplaces" if g_mkt else "Físico"
-    det = (f"online=tier{tm}->{g_mkt}" if tm else "online=nao vende")
-    det += (f" | fisico=tier{tf}->{g_fis}" if tf else " | fisico=nao vende")
+    g_mkt = _MKT[grupo][tm] if tm is not None else None
+    g_fis = _FIS[grupo][tf] if tf is not None else None
+    grade = min([g for g in (g_mkt, g_fis) if g], key=lambda g: _ORD[g])
+    canal = "Marketplaces" if (g_mkt and grade == g_mkt) else "Físico"
+    det = (f"online->{g_mkt}" if g_mkt else "online=nao vende")
+    det += (f" | fisico->{g_fis}" if g_fis else " | fisico=nao vende")
+    det += f" => maior={grade}"
     return grade, det, canal
 
 

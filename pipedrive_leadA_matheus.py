@@ -193,53 +193,79 @@ def salvar_docx(linhas, cols, caminho="leadA_matheus.docx"):
 
 
 # =============================================================================
-# CLASSIFICACAO OFICIAL (deck "Definicao Classificacao de Leads V5")
+# CLASSIFICACAO OFICIAL (deck "Definicao Classificacao de Leads V5_1")
+# Regra: cortes (fat nulo->F; estado NVA->E; cargo<=Supervisor->E). Depois calcula
+# a nota pela matriz de Marketplaces (fat online) E pela de Fisico (fat fisico) e
+# fica com a MAIOR das duas (leads hibridos usam a melhor classificacao).
 # =============================================================================
-_MKT = {"S": {1: "D", 2: "B", 3: "B", 4: "A", 5: "A", 6: "A", 7: "A", 8: "A"},
-        "G": {1: "E", 2: "D", 3: "B", 4: "B", 5: "B", 6: "B", 7: "B", 8: "D"}}
-_FIS = {"S": {1: "E", 2: "D", 3: "D", 4: "C", 5: "C", 6: "C", 7: "C", 8: "C"},
-        "G": {1: "E", 2: "E", 3: "E", 4: "E", 5: "E", 6: "E", 7: "D", 8: "D"}}
+# matriz Marketplaces: 10 faixas (0-5k, 5-15k, 15-40k, 40-60k, 60-100k, 100-300k,
+#                                 300-500k, 500k-1M, 1M-5M, >5M)
+_MKT = {"S": ["E", "E", "C", "B", "B", "A", "A", "A", "A", "A"],
+        "G": ["E", "E", "E", "E", "D", "D", "D", "D", "D", "D"]}
+# matriz Fisico: 8 faixas (0-15k, 15-60k, 60-100k, 100-300k, 300-500k, 500k-1M, 1M-5M, >5M)
+_FIS = {"S": ["E", "E", "E", "B", "A", "A", "A", "A"],
+        "G": ["E", "E", "E", "D", "D", "D", "D", "D"]}
 _ESTADOS_VAL = {"são paulo", "minas gerais", "paraná", "rio grande do sul",
                 "santa catarina", "distrito federal", "rio de janeiro"}
 _CARGO_S = {"sócio ou fundador", "diretor"}
 _CARGO_G = {"gerente", "coordenador"}
+_ORD = {"A": 0, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5}
 
 
-def _tier(v):
+def _tier_mkt(v):
     if not v:
         return None
     v = v.lower()
     if "ainda não" in v or "não temos" in v or "não vendemos" in v:
         return None
-    if "acima de r$ 5" in v: return 8
-    if "1 milhão a r$ 5" in v: return 7
-    if "500.000 a r$ 1" in v: return 6
-    if "300.000 a r$ 500" in v: return 5
-    if "100.000 a r$ 300" in v: return 4
-    if "60.000 a r$ 100" in v: return 3
-    if ("15.000 a r$ 40" in v or "40.000 a r$ 60" in v
-            or "15.000 a r$ 60" in v or "0 a r$ 60" in v): return 2
-    if "0 a r$ 5.000" in v or "5.000 a r$ 15" in v or "0 a r$ 15" in v: return 1
+    if "acima de r$ 5" in v: return 9
+    if "1 milhão a r$ 5" in v: return 8
+    if "500.000 a r$ 1" in v: return 7
+    if "300.000 a r$ 500" in v: return 6
+    if "100.000 a r$ 300" in v: return 5
+    if "60.000 a r$ 100" in v: return 4
+    if "40.000 a r$ 60" in v: return 3
+    if "15.000 a r$ 40" in v or "15.000 a r$ 60" in v: return 2   # faixa larga -> menor
+    if "5.000 a r$ 15" in v: return 1
+    if "0 a r$ 5.000" in v or "0 a r$ 15" in v: return 0
+    return None
+
+
+def _tier_fis(v):
+    if not v:
+        return None
+    v = v.lower()
+    if "ainda não" in v or "não temos" in v or "não vendemos" in v:
+        return None
+    if "acima de r$ 5" in v: return 7
+    if "1 milhão a r$ 5" in v: return 6
+    if "500.000 a r$ 1" in v: return 5
+    if "300.000 a r$ 500" in v: return 4
+    if "100.000 a r$ 300" in v: return 3
+    if "60.000 a r$ 100" in v: return 2
+    if "15.000 a r$ 60" in v or "15.000 a r$ 40" in v or "40.000 a r$ 60" in v: return 1
+    if "0 a r$ 15" in v or "0 a r$ 5.000" in v or "5.000 a r$ 15" in v or "0 a r$ 60" in v: return 0
     return None
 
 
 def classificar_deck(linha):
-    """Retorna (grade, detalhe) pela regra do deck V5, a partir dos campos ja extraidos."""
+    """Retorna (grade, detalhe) pela regra do deck V5_1 (maior nota entre os canais)."""
     c = (linha.get("cargo") or "").lower()
     grupo = "S" if c in _CARGO_S else ("G" if c in _CARGO_G else None)
     if grupo is None:
         return "E", "cargo <= Supervisor"
     if (linha.get("estado") or "").lower() not in _ESTADOS_VAL:
         return "E", "estado nao valido"
-    tm = _tier(linha.get("faturamento_marketplaces"))
-    tf = _tier(linha.get("faturamento_fisico"))
+    tm = _tier_mkt(linha.get("faturamento_marketplaces"))
+    tf = _tier_fis(linha.get("faturamento_fisico"))
     if tm is None and tf is None:
         return "F", "nao vende em nenhum canal"
-    g_mkt = _MKT[grupo][tm] if tm else None
-    g_fis = _FIS[grupo][tf] if tf else None
-    grade = g_mkt or g_fis  # vende em marketplace -> tabela marketplace
-    det = (f"mkt=tier{tm}->{g_mkt}" if tm else "mkt=nao vende")
-    det += (f" | fis=tier{tf}->{g_fis}" if tf else " | fis=nao vende")
+    g_mkt = _MKT[grupo][tm] if tm is not None else None
+    g_fis = _FIS[grupo][tf] if tf is not None else None
+    grade = min([g for g in (g_mkt, g_fis) if g], key=lambda g: _ORD[g])  # MAIOR nota
+    det = (f"online->{g_mkt}" if g_mkt else "online=nao vende")
+    det += (f" | fisico->{g_fis}" if g_fis else " | fisico=nao vende")
+    det += f" => maior={grade}"
     return grade, det
 
 
