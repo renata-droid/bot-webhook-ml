@@ -10,7 +10,7 @@ atribui ao closer (Vendedor) e cruza:
 
   lost_ranking_closer.csv   closer x (qtd, valor, dias medios ate o lost, taxa%)
   lost_closer_x_lead.csv    closer x grade do Lead (A..F)
-  lost_motivos.csv          motivo da perda (qtd, valor) + responsavel (Closer/SDR)
+  lost_motivos.csv          motivo da perda (dropdown OU texto real "Descricao da Perda")
   lost_por_produto.csv      produto apresentado x qtd
   lost_por_etapa.csv        etapa onde perdeu x qtd
   lost_por_mes.csv          curva de perdas por mes
@@ -176,7 +176,9 @@ def main():
         valor = num(d.get("value"))
         lead = opt(d.get(K_LEAD), K_LEAD, mapa) or "(sem)"
         prod = opt(d.get(K_PROD_APR), K_PROD_APR, mapa) or opt(d.get(K_PRODUTO), K_PRODUTO, mapa) or "(sem)"
-        motivo = d.get("lost_reason") or "(sem motivo)"
+        motivo_drop = d.get("lost_reason") or ""                       # dropdown (quase sempre vazio)
+        desc = (d.get(K_DESC) or "").replace("\n", " ").strip()        # texto livre = motivo real
+        motivo = motivo_drop or desc or "(sem motivo)"                 # usa o que tiver
         etapa = etapas.get(d.get("stage_id"), d.get("stage_id"))
         lt = (d.get("lost_time") or "")[:10]
         dcriacao = dias(d.get("add_time") or "", lt) if d.get("add_time") else None
@@ -190,12 +192,13 @@ def main():
         x_prod[prod] += 1
         x_etapa[etapa] += 1
         motivos[motivo]["qtd"] += 1; motivos[motivo]["valor"] += valor
-        motivos[motivo]["resp"] = responsavel_motivo(motivo)
+        motivos[motivo]["resp"] = responsavel_motivo(motivo_drop)
         por_mes[lt[:7]]["qtd"] += 1; por_mes[lt[:7]]["valor"] += valor
         detalhe.append({
             "deal_id": d.get("id"), "closer": closer, "titulo": d.get("title", ""),
             "lead": lead, "produto": prod, "motivo_perda": motivo,
-            "responsavel": responsavel_motivo(motivo), "etapa": etapa,
+            "motivo_dropdown": motivo_drop, "responsavel": responsavel_motivo(motivo_drop),
+            "etapa": etapa,
             "criado_em": (d.get("add_time") or "")[:10], "perdido_em": lt,
             "dias_ate_lost": dcriacao if dcriacao is not None else "",
             "dias_desde_SAL": dsal if dsal is not None else "",
@@ -239,8 +242,8 @@ def main():
               sorted(por_mes.items())])
     escrever("lost_detalhe.csv",
              ["deal_id", "closer", "titulo", "lead", "produto", "motivo_perda",
-              "responsavel", "etapa", "criado_em", "perdido_em", "dias_ate_lost",
-              "dias_desde_SAL", "descricao_perda", "valor"], detalhe)
+              "motivo_dropdown", "responsavel", "etapa", "criado_em", "perdido_em",
+              "dias_ate_lost", "dias_desde_SAL", "descricao_perda", "valor"], detalhe)
 
     # resumo na tela
     print("-" * 74)
