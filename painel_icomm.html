@@ -1,0 +1,2695 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel Comercial ICOMM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#07060B; --panel:#100E17; --card:#15121D; --card-2:#1C1826; --line:#262130;
+  --fg:#F2F0F7; --muted:#948CA8; --faint:#635C78;
+  --roxo:#A222EF; --roxo-2:#C77DFF; --lima:#D5FF79; --oliva:#A5D03D;
+  --rosa:#FF5C8A; --peri:#8B7BFF; --ambar:#FFB443; --ciano:#3FD6E0;
+  --r:18px; --rs:12px;
+  --sans:'Plus Jakarta Sans',ui-sans-serif,system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+:root[data-theme="light"]{
+  --bg:#F2F0F7; --panel:#FFFFFF; --card:#FFFFFF; --card-2:#F7F5FB; --line:#E4E0EE;
+  --fg:#14101E; --muted:#5C5570; --faint:#8C85A0; --roxo:#7C00AD; --lima:#5E7A22;
+  --oliva:#4F7A1F; --rosa:#C4265B; --peri:#5A49D6; --ambar:#8A5B00; --ciano:#0E7C87;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:13.5px;
+  line-height:1.5;-webkit-font-smoothing:antialiased}
+.app{display:grid;grid-template-columns:236px 1fr;min-height:100vh}
+@media(max-width:900px){.app{grid-template-columns:1fr}.side{display:none}}
+
+/* ---------- login ---------- */
+#login{position:fixed;inset:0;z-index:99;background:var(--bg);display:grid;place-items:center;padding:24px}
+#fl{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:28px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px}
+#fl input{font:inherit;padding:11px 12px;border-radius:10px;border:1px solid var(--line);
+  background:var(--card-2);color:var(--fg)}
+#fl input:focus-visible{outline:2px solid var(--roxo);outline-offset:1px}
+#fl button{font:inherit;font-weight:700;padding:11px;border-radius:10px;border:0;
+  background:var(--roxo);color:#fff;cursor:pointer}
+.mk{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:9px;
+  background:var(--roxo);color:var(--lima);font-weight:800;font-size:13px;letter-spacing:-.5px;
+  flex:none;overflow:hidden}
+.mk img{width:100%;height:100%;object-fit:contain;display:block}
+.mk.temlogo{background:transparent}
+
+/* ---------- barra lateral ---------- */
+.side{background:var(--panel);border-right:1px solid var(--line);padding:20px 14px;
+  display:flex;flex-direction:column;gap:22px;position:sticky;top:0;height:100vh}
+.logo{display:flex;align-items:center;gap:10px;padding:0 8px}
+.logo b{font-size:16px;font-weight:800;letter-spacing:-.02em}
+.logo span{font-size:10px;color:var(--faint);display:block;font-weight:500;letter-spacing:.14em;text-transform:uppercase}
+.navt{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin-bottom:6px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:10px;
+  color:var(--muted);text-decoration:none;font-weight:500;font-size:13px}
+.nav a:hover{background:var(--card);color:var(--fg)}
+.nav a.on{background:color-mix(in srgb,var(--roxo) 16%,transparent);color:var(--fg)}
+.nav a.on .ico{color:var(--roxo)}
+.ico{width:16px;height:16px;flex:none;color:var(--faint)}
+.side-foot{margin-top:auto;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--rs);padding:11px;display:flex;align-items:center;gap:10px}
+
+/* ---------- topo ---------- */
+.main{padding:20px 24px 56px;min-width:0}
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.top h1{font-size:20px;font-weight:700;letter-spacing:-.02em;margin:0}
+.top p{margin:2px 0 0;color:var(--muted);font-size:12.5px}
+.tools{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.filtros{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;background:var(--card);
+  border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:16px;
+  position:sticky;top:0;z-index:20}
+.f{display:flex;flex-direction:column;gap:5px}
+.f label{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+input[type="date"],select{font:inherit;font-size:12.5px;font-weight:500;color:var(--fg);
+  background:var(--card-2);border:1px solid var(--line);border-radius:10px;padding:7px 10px;
+  cursor:pointer;min-width:128px;color-scheme:dark}
+:root[data-theme="light"] input[type="date"]{color-scheme:light}
+input:focus-visible,select:focus-visible{outline:2px solid var(--roxo);outline-offset:1px}
+.btn{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;
+  cursor:pointer;color:var(--muted);font:inherit;font-size:12.5px;font-weight:500}
+.btn:hover{color:var(--fg);border-color:var(--roxo)}
+.btn:focus-visible{outline:2px solid var(--roxo);outline-offset:2px}
+.fcount{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--faint);padding-bottom:8px}
+
+/* ---------- grades e cartões ---------- */
+.grid{display:grid;gap:14px}
+.g7{grid-template-columns:repeat(2,1fr)}
+@media(min-width:720px){.g7{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:1240px){.g7{grid-template-columns:repeat(7,1fr)}}
+.g2{grid-template-columns:1fr}
+@media(min-width:1080px){.g2{grid-template-columns:1.6fr 1fr}}
+.g2b{grid-template-columns:1fr}
+@media(min-width:1080px){.g2b{grid-template-columns:1fr 1fr}}
+.g5{grid-template-columns:repeat(2,1fr)}
+@media(min-width:860px){.g5{grid-template-columns:repeat(5,1fr)}}
+.aba-nota{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--muted);
+  align-self:center;padding-right:4px}
+.g6{grid-template-columns:repeat(2,1fr)}
+@media(min-width:1000px){.g6{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1320px){.g6{grid-template-columns:repeat(6,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.card.pad0{padding:0;overflow:hidden}
+.ch{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.ch h2{font-size:13.5px;font-weight:700;margin:0;letter-spacing:-.01em}
+.ch .sub{font-size:11.5px;color:var(--faint)}
+.sec{margin-bottom:14px}
+
+/* ---------- anel ---------- */
+.tile{display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 13px;
+  font:inherit;color:inherit;width:100%}
+.tile:hover{border-color:color-mix(in srgb,var(--roxo) 45%,transparent)}
+.tile.on{border-color:var(--roxo);background:color-mix(in srgb,var(--roxo) 10%,var(--card))}
+.tile:focus-visible{outline:2px solid var(--roxo);outline-offset:2px}
+.ring{position:relative;width:52px;height:52px;flex:none}
+.ring .pc{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);
+  font-size:11px;font-weight:600}
+.tile .lab{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.tile .val{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:-.03em;
+  display:block;margin-top:2px;font-variant-numeric:tabular-nums}
+.tile .dt{font-size:10.5px;color:var(--faint);display:block;margin-top:3px}
+.temps{display:flex;gap:4px;margin-top:5px;flex-wrap:wrap}
+.tchip{font-family:var(--mono);font-size:10px;padding:1px 5px;border-radius:4px;font-style:normal}
+.tq{background:color-mix(in srgb,var(--rosa) 18%,transparent);color:var(--rosa)}
+.tm{background:color-mix(in srgb,var(--ambar) 18%,transparent);color:var(--ambar)}
+.tf{background:color-mix(in srgb,var(--peri) 18%,transparent);color:var(--peri)}
+
+/* ---------- herói ---------- */
+.hero{background:linear-gradient(150deg,color-mix(in srgb,var(--roxo) 22%,var(--card)) 0%,var(--card) 55%);
+  border:1px solid color-mix(in srgb,var(--roxo) 38%,transparent);border-radius:var(--r);padding:18px}
+.hero .lab{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--roxo-2)}
+.hero .big{font-family:var(--mono);font-size:46px;font-weight:700;letter-spacing:-.04em;
+  line-height:1;margin:8px 0 4px;font-variant-numeric:tabular-nums}
+.hero .form{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.legend{display:flex;gap:14px;font-size:11.5px;color:var(--muted);flex-wrap:wrap}
+.legend i{width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:-1px}
+
+/* ---------- avatar e ranking ---------- */
+.av{border-radius:50%;object-fit:cover;flex:none;display:inline-grid;place-items:center;
+  font-weight:700;background:var(--card-2);color:var(--muted);overflow:hidden}
+.who{display:inline-flex;align-items:center;gap:8px}
+.rank{display:flex;flex-direction:column;gap:11px}
+.rk{display:grid;grid-template-columns:26px 34px 1fr auto;gap:11px;align-items:center}
+.rk .pos{font-family:var(--mono);font-size:12px;color:var(--faint);font-weight:600}
+.rk .nm{font-weight:600;font-size:13px}
+.rk .bar{grid-column:2/-1;height:6px;border-radius:3px;background:var(--card-2);overflow:hidden;margin-top:-4px}
+.rk .fl{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--roxo),var(--roxo-2))}
+.rk .vl{font-family:var(--mono);font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums}
+.rk .sb{font-size:11px;color:var(--faint)}
+
+/* ---------- tabelas ---------- */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);
+  text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--card)}
+th.n,td.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--card-2)}
+tr.total td{background:var(--card-2);font-weight:700;border-top:1px solid var(--line)}
+.scroll{overflow-x:auto}
+.name{font-weight:500;white-space:nowrap}
+.dim{color:var(--faint)}
+.pill{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:3px 8px;border-radius:20px;white-space:nowrap}
+.p-won{background:color-mix(in srgb,var(--oliva) 18%,transparent);color:var(--oliva)}
+.p-lost{background:color-mix(in srgb,var(--rosa) 18%,transparent);color:var(--rosa)}
+.p-open{background:color-mix(in srgb,var(--peri) 18%,transparent);color:var(--peri)}
+.p-churn{background:color-mix(in srgb,var(--rosa) 30%,transparent);color:var(--rosa)}
+.nota{font-family:var(--mono);font-weight:700;font-size:12px;padding:3px 8px;border-radius:20px}
+.n-forte{background:color-mix(in srgb,var(--oliva) 18%,transparent);color:var(--oliva)}
+.n-boa{background:color-mix(in srgb,var(--ciano) 16%,transparent);color:var(--ciano)}
+.n-mediana{background:color-mix(in srgb,var(--ambar) 18%,transparent);color:var(--ambar)}
+.n-grave{background:color-mix(in srgb,var(--rosa) 18%,transparent);color:var(--rosa)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.d-q{background:var(--rosa)} .d-m{background:var(--ambar)} .d-f{background:var(--peri)}
+.desc-hi{color:var(--rosa);font-weight:700}
+.objchip{display:inline-block;font-size:10.5px;padding:2px 7px;border-radius:20px;margin:2px 4px 2px 0;
+  background:color-mix(in srgb,var(--rosa) 16%,transparent);color:var(--rosa)}
+.tw{background:none;border:0;padding:0;margin-right:7px;cursor:pointer;color:var(--faint);
+  font-family:var(--mono);font-size:11px;width:13px;display:inline-block;text-align:left}
+.tw:hover{color:var(--roxo-2)}
+.tw:focus-visible{outline:2px solid var(--roxo);outline-offset:2px;border-radius:3px}
+tr.lvl1 td{background:var(--card)} tr.lvl1 .name{font-weight:700}
+tr.lvl2 td{background:color-mix(in srgb,var(--card-2) 55%,transparent)}
+tr.lvl3 td{background:color-mix(in srgb,var(--card-2) 30%,transparent);font-size:12px}
+.ind2{padding-left:26px} .ind3{padding-left:52px}
+.exp{background:none;border:1px solid var(--line);color:var(--muted);cursor:pointer;
+  border-radius:6px;width:22px;height:22px;line-height:1;font-size:13px;padding:0;font-family:var(--mono)}
+.exp:hover{color:var(--fg);border-color:var(--roxo)}
+tr.detail td{background:var(--card-2);padding:0}
+.detail-in{padding:12px 14px 14px 44px;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.dl dt{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:3px}
+.dl dd{margin:0;font-size:12.5px}
+.an{padding:14px 16px 16px 44px;display:grid;gap:14px}
+.an-top{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.an-stat{font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:20px;
+  background:var(--card);border:1px solid var(--line);color:var(--muted)}
+.an-stat b{color:var(--fg);font-weight:600}
+.an-alert{font-size:11px;padding:3px 8px;border-radius:20px;
+  background:color-mix(in srgb,var(--ambar) 16%,transparent);color:var(--ambar)}
+.an-resumo{font-size:12.5px;color:var(--fg);max-width:80ch;line-height:1.6;margin:0}
+.an-cols{display:grid;gap:14px;grid-template-columns:1fr}
+@media(min-width:880px){.an-cols{grid-template-columns:repeat(3,1fr)}}
+.an-col h5{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin:0 0 6px}
+.an-col ul{margin:0;padding-left:16px;font-size:12px;color:var(--muted);line-height:1.55}
+.h-certo{color:var(--oliva)} .h-erro{color:var(--rosa)} .h-cond{color:var(--roxo-2)}
+.an-porque{font-size:12px;color:var(--muted);border-left:2px solid var(--line);padding-left:12px;margin:0}
+
+/* ---------- blocos menores ---------- */
+.stat{background:var(--card-2);border-radius:var(--rs);padding:11px 12px}
+.stat .k{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);display:block;margin-bottom:5px}
+.stat .v{font-family:var(--mono);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.stat .s{display:block;margin-top:3px;font-size:11px;color:var(--faint)}
+.bars h3{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);margin:0 0 12px}
+.bar{display:grid;grid-template-columns:1fr auto;gap:3px 10px;margin-bottom:11px;align-items:center}
+.bar:last-child{margin-bottom:0}
+.bar .lbl{font-size:12px;color:var(--muted)}
+.bar .num{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+.bar .track{grid-column:1/-1;height:6px;border-radius:3px;background:var(--card-2);overflow:hidden}
+.bar .fill{height:100%;border-radius:3px;background:var(--rosa)}
+.fill-a{background:var(--roxo-2)} .fill-o{background:var(--peri)}
+.trilha{height:6px;border-radius:3px;background:var(--card-2);overflow:hidden;display:block}
+.trilha i{display:block;height:100%;border-radius:3px}
+.empty{padding:24px;text-align:center;color:var(--faint);font-size:12.5px}
+.tag{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;
+  border-radius:20px;background:color-mix(in srgb,var(--roxo) 16%,transparent);color:var(--roxo-2)}
+.tag.ok{background:color-mix(in srgb,var(--oliva) 16%,transparent);color:var(--oliva)}
+.tag.err{background:color-mix(in srgb,var(--rosa) 18%,transparent);color:var(--rosa)}
+.ai{font-size:13px;line-height:1.65;color:var(--muted);max-width:80ch}
+.ai h4{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--fg);margin:16px 0 6px}
+.ai h4:first-child{margin-top:0}
+.ai ul{margin:0;padding-left:17px} .ai li{margin-bottom:5px} .ai b{color:var(--fg);font-weight:600}
+.abas{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;background:var(--card);
+  border:1px solid var(--line);border-radius:var(--r);padding:6px;width:fit-content;
+  box-shadow:0 4px 18px -10px rgba(0,0,0,.6)}
+.aba{font:inherit;font-size:14px;font-weight:700;letter-spacing:-.01em;color:var(--muted);
+  background:none;border:0;padding:11px 24px;border-radius:12px;cursor:pointer;
+  display:flex;align-items:center;gap:8px;transition:color .12s}
+.aba::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--line)}
+.aba:hover{color:var(--fg)}
+.aba.on{background:linear-gradient(180deg,color-mix(in srgb,var(--roxo) 30%,transparent),
+  color-mix(in srgb,var(--roxo) 16%,transparent));color:#fff;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--roxo) 55%,transparent)}
+.aba.on::before{background:var(--lima);box-shadow:0 0 8px var(--lima)}
+.aba:focus-visible{outline:2px solid var(--roxo);outline-offset:1px}
+.abas.peq{margin:0 0 12px;padding:4px;box-shadow:none}
+.abas.peq .aba{font-size:11.5px;padding:5px 10px;gap:0}
+.abas.peq .aba::before{display:none}
+/* estados do retorno — a cor diz de quem é a bola */
+.e-vencido{color:var(--rosa)} .e-hoje{color:var(--ambar)} .e-futuro{color:var(--peri)}
+.e-noshow{color:var(--ambar)} .e-reagendado{color:var(--ciano)}
+.e-realizado{color:var(--oliva)} .e-semdata{color:var(--faint)}
+.bolha{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+  padding:3px 8px;border-radius:20px;white-space:nowrap}
+.b-vencido{background:color-mix(in srgb,var(--rosa) 20%,transparent);color:var(--rosa)}
+.b-hoje{background:color-mix(in srgb,var(--ambar) 20%,transparent);color:var(--ambar)}
+.b-futuro{background:color-mix(in srgb,var(--peri) 18%,transparent);color:var(--peri)}
+.b-noshow{background:color-mix(in srgb,var(--ambar) 16%,transparent);color:var(--ambar)}
+.b-reagendado{background:color-mix(in srgb,var(--ciano) 16%,transparent);color:var(--ciano)}
+.b-realizado{background:color-mix(in srgb,var(--oliva) 18%,transparent);color:var(--oliva)}
+.b-semdata{background:var(--card-2);color:var(--faint)}
+.lastro{background:var(--card-2);border-radius:var(--rs);padding:12px 13px}
+.lastro h4{margin:0 0 8px;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+.lastro .res{font-size:11.5px;color:var(--faint);margin-bottom:8px}
+.lastro ul{margin:0;padding:0;list-style:none;font-size:12px}
+.lastro li{display:flex;gap:7px;align-items:baseline;padding:3px 0;border-top:1px solid var(--line)}
+.lastro li:first-child{border-top:0}
+.mini{font-size:10.5px;color:var(--faint)}
+.vazio{padding:18px;text-align:center;color:var(--faint);font-size:12.5px}
+.foot{margin-top:20px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--faint)}
+code{font-family:var(--mono);font-size:11.5px;background:var(--card-2);padding:1px 5px;border-radius:5px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.fbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px 0}
+.fbar input,.fbar select{background:var(--card-2);border:1px solid var(--linha);color:var(--fg);
+  border-radius:9px;padding:9px 12px;font:inherit;font-size:13px}
+.fbar input{flex:1;min-width:220px}
+.fbar input:focus,.fbar select:focus{outline:none;border-color:var(--roxo-2)}
+.fbar .lnk{background:none;border:none;color:var(--muted);font:inherit;font-size:12px;
+  cursor:pointer;text-decoration:underline;padding:4px}
+.fbar .lnk:hover{color:var(--roxo-2)}
+.chip{background:var(--card-2);border:1px solid var(--linha,var(--line));color:var(--muted);
+  border-radius:999px;padding:7px 13px;font:inherit;font-size:12.5px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.chip b{color:var(--fg);font-family:var(--mono)}
+.chip .dim{font-family:var(--mono);font-size:11px}
+.chip:hover{border-color:var(--roxo-2);color:var(--fg)}
+.chip.on{background:color-mix(in srgb,var(--roxo) 22%,transparent);border-color:var(--roxo-2);
+  color:var(--fg)}
+</style>
+
+<div id="login">
+  <form id="fl">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+      <span class="mk"><span class="ini">IC</span></span>
+      <div><b style="font-size:16px;font-weight:800">ICOMM</b>
+        <span style="font-size:10px;color:var(--faint);display:block;letter-spacing:.14em;text-transform:uppercase">Painel Comercial</span></div>
+    </div>
+    <input id="em" type="email" placeholder="E-mail" required autocomplete="username">
+    <input id="se" type="password" placeholder="Senha" required autocomplete="current-password">
+    <button type="submit">Entrar</button>
+    <p id="msg" style="margin:0;font-size:12.5px;color:var(--rosa);min-height:18px"></p>
+  </form>
+</div>
+
+<div class="app" id="app" style="display:none">
+<aside class="side">
+  <div class="logo"><span class="mk"><span class="ini">IC</span></span><div><b>ICOMM</b><span>Comercial</span></div></div>
+  <div>
+    <div class="navt">Painel</div>
+    <nav class="nav" id="nav">
+      <a href="#" data-pg="geral" class="on"><svg class="ico" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.5" stroke="currentColor" stroke-width="1.5"/></svg>Visão geral</a>
+      <a href="#" data-pg="retorno"><svg class="ico" viewBox="0 0 16 16" fill="none"><path d="M13.5 8a5.5 5.5 0 11-1.7-3.97" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M13.5 2v3h-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Retorno</a>
+      <a href="#" data-pg="churn"><svg class="ico" viewBox="0 0 16 16" fill="none"><path d="M2 5l4 4 3-3 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11V7.5M14 11h-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Churn</a>
+      <a href="#" data-pg="sdr"><svg class="ico" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="2.75" stroke="currentColor" stroke-width="1.5"/><path d="M2.5 14c0-3 2.5-4.5 5.5-4.5s5.5 1.5 5.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>SDR</a>
+      <a href="#" data-pg="closers"><svg class="ico" viewBox="0 0 16 16" fill="none"><path d="M4 2h8v4a4 4 0 01-8 0V2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.5 14h3M8 10v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Closers</a>
+      <a href="#" data-pg="reunioes"><svg class="ico" viewBox="0 0 16 16" fill="none"><path d="M2 3.5h12v8H8l-4 3v-3H2v-8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>Reuniões</a>
+    </nav>
+  </div>
+  <div class="side-foot">
+    <span class="av" id="me-ini" style="width:32px;height:32px;font-size:11px">··</span>
+    <div style="min-width:0"><div id="me-nome" style="font-weight:600;font-size:12.5px">—</div>
+      <div style="font-size:11px;color:var(--faint)">Comercial</div></div>
+  </div>
+</aside>
+
+<main class="main" id="topo">
+  <header class="top">
+    <div><h1 id="titulo">Visão geral</h1><p id="sub">carregando…</p></div>
+    <div class="tools">
+      <span class="tag" id="selo">Pipedrive ao vivo</span>
+      <button class="btn" id="recarregar" type="button">Atualizar</button>
+      <button class="btn" id="theme" type="button">Tema</button>
+      <button class="btn" id="sair" type="button">Sair</button>
+    </div>
+  </header>
+
+  <div class="filtros">
+    <div class="f"><label for="f-de">De</label><input id="f-de" type="date"></div>
+    <div class="f"><label for="f-ate">Até</label><input id="f-ate" type="date"></div>
+    <div class="f"><label for="f-basedata">Base da data</label>
+      <select id="f-basedata">
+        <option value="desfecho">Desfecho (ganho/perda)</option>
+        <option value="criacao">Criação do negócio</option>
+      </select></div>
+    <div class="f"><label for="f-orig">Origem</label><select id="f-orig"></select></div>
+    <div class="f"><label for="f-vend">Vendedor</label><select id="f-vend"></select></div>
+    <div class="f"><label for="f-prod">Produto</label><select id="f-prod"></select></div>
+    <div class="f"><label for="f-canal">Canal</label><select id="f-canal"></select></div>
+    <div class="f"><label for="f-lead">Qualificação</label><select id="f-lead"></select></div>
+    <div class="f"><label for="f-temp">Temperatura</label>
+      <select id="f-temp"><option value="">Todas</option><option>Quente</option><option>Morno</option><option>Frio</option></select></div>
+    <div class="f"><label for="f-ret">Etapas do RET</label>
+      <select id="f-ret"><option value="retorno">Retorno Agendado + Realizado</option><option value="followup">+ Follow UP</option></select></div>
+    <div class="fcount" id="fcount"></div>
+  </div>
+
+<div class="pg" id="pg-geral">
+  <section class="grid g7 sec" id="tiles"></section>
+
+  <section class="grid g2 sec">
+    <div class="hero">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+        <div><div class="lab">Conversão líquida</div>
+          <div class="big" id="net">—</div><div class="form" id="netf"></div></div>
+        <div class="legend"><span><i style="background:var(--muted)"></i>Bruta</span>
+          <span><i style="background:var(--lima)"></i>Líquida</span></div>
+      </div>
+      <div id="area" style="margin-top:6px"></div>
+      <div class="dim" id="areanota" style="font-size:11px;margin-top:4px"></div>
+    </div>
+    <div class="card">
+      <div class="ch"><h2>Carteira em retorno</h2><span class="sub" id="retsub"></span></div>
+      <div id="donut"></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="ch"><h2>Precisa de atenção</h2>
+      <span class="sub">clique para ir direto ao detalhe</span></div>
+    <div class="grid g5" id="vg-atencao"></div>
+  </section>
+
+  <section class="grid g2b sec">
+    <div class="card"><div class="ch"><h2>Ranking de closers</h2>
+      <span class="sub">receita no período</span></div>
+      <div class="rank" id="rank"></div></div>
+    <div class="card bars" id="vg-qualif"></div>
+  </section>
+
+</div><!-- /pg-geral -->
+
+<div class="pg" id="pg-retorno" hidden>
+  <div class="abas" id="abas-ret" role="tablist">
+    <button class="aba on" data-aba="hoje" role="tab">Hoje</button>
+    <button class="aba" data-aba="desempenho" role="tab">Desempenho</button>
+  </div>
+
+  <div class="tab" id="tab-hoje">
+    <div class="grid g5 sec" id="ret-acao"></div>
+
+    <section class="card pad0 sec">
+      <div class="ch" style="padding:16px 16px 0"><h2>Lastro das reuniões</h2>
+        <span class="sub" id="lastro-sub"></span></div>
+      <div class="grid g2b" style="padding:0 16px 16px" id="lastro-cards"></div>
+    </section>
+
+    <section class="card sec">
+      <div class="ch"><h2>Retornos por dia</h2>
+        <span class="sub" id="dias-sub"></span></div>
+      <div id="ret-dias"></div>
+      <div class="scroll" style="margin-top:14px"><table id="t-dias-closer"></table></div>
+    </section>
+
+    <section class="card pad0 sec">
+      <div class="ch" style="padding:16px 16px 0"><h2>Negócios em retorno</h2>
+        <span class="sub" id="ret-lista-sub"></span></div>
+      <div class="fbar" id="ret-chips"></div>
+      <div class="scroll"><table id="t-ret-lista"></table></div>
+    </section>
+  </div>
+
+  <div class="tab" id="tab-desempenho" hidden>
+    <div class="grid g5 sec" id="des-funil"></div>
+
+    <section class="card pad0 sec">
+      <div class="ch" style="padding:16px 16px 0"><h2>Por closer</h2></div>
+      <div class="scroll"><table id="t-corte-v"></table></div>
+    </section>
+
+    <section class="card pad0 sec">
+      <div class="ch" style="padding:16px 16px 0"><h2>Por canal de conexão</h2>
+        <span class="sub">campo preenchido à mão no negócio</span></div>
+      <div class="scroll"><table id="t-corte-canal"></table></div>
+    </section>
+
+    <section class="card pad0 sec">
+      <div class="ch" style="padding:16px 16px 0"><h2>Onde a reunião aconteceu</h2>
+        <span class="sub">lido da atividade do Pipedrive · é aqui que o Google Meet aparece,
+          porque ele não existe como opção do campo Canal</span></div>
+      <div class="scroll"><table id="t-corte-plataforma"></table></div>
+    </section>
+  </div>
+</div>
+<div class="pg" id="pg-churn" hidden>
+  <div class="ch"><h2>Visão de churn</h2>
+    <span class="sub">Saúde do Aluno + Data do Cancelamento · meta da casa: até 5%</span></div>
+
+  <div class="abas" id="abas-churn" role="tablist">
+    <button class="aba on" data-cba="cancelou" role="tab">Cancelou no período</button>
+    <button class="aba" data-cba="vendeu" role="tab">Vendeu no período</button>
+    <span class="aba-nota" id="ch-aba-nota"></span>
+  </div>
+
+  <div class="grid g6 sec" id="ch-cards"></div>
+
+  <section class="card sec">
+    <div class="ch"><h2>Cancelamentos por mês</h2>
+      <span class="sub" id="ch-qtd-sub">quantos, e quantos caíram logo na primeira semana</span></div>
+    <div id="ch-qtd12"></div>
+  </section>
+
+  <section class="card sec">
+    <div class="ch"><h2>De quem foi o churn</h2></div>
+    <div id="ch-culpa"></div>
+  </section>
+
+  <section class="card sec">
+    <div class="ch"><h2>Cancelamentos por closer</h2>
+      <span class="sub">quem vende e o cliente cancela</span></div>
+    <div class="rank" id="ch-rank"></div>
+  </section>
+
+  <div class="grid g2b sec">
+    <div class="card bars" id="ch-tempo"></div>
+    <div class="card"><div class="ch"><h2>Reembolso por Buddy</h2>
+      <span class="sub">time de CS que acompanhava o aluno</span></div>
+      <div class="rank" id="ch-buddy"></div></div>
+  </div>
+
+  <section class="card pad0 sec">
+    <div class="ch" style="padding:16px 16px 0"><h2>Churn por produto</h2>
+      <span class="sub">qual produto o cliente não sustenta</span></div>
+    <div class="scroll"><table id="ch-produto"></table></div>
+  </section>
+
+  <section class="card pad0 sec">
+    <div class="ch" style="padding:16px 16px 0"><h2>Quem cancelou</h2>
+      <span class="sub" id="ch-lista-sub"></span></div>
+    <div class="scroll"><table id="ch-lista"></table></div>
+  </section>
+
+</div>
+<div class="pg" id="pg-sdr" hidden></div>
+<div class="pg" id="pg-closers" hidden>
+  <div class="ch"><h2>Closers</h2>
+    <span class="sub">período do topo · ordenado por receita</span></div>
+  <div class="grid g5 sec" id="cl-cards"></div>
+
+  <section class="card pad0 sec" id="hier">
+    <div class="ch" style="padding:16px 16px 0"><h2>Vendedor › Produto › Lead</h2>
+      <span class="sub">clique na setinha para abrir; no lead, abre a análise da call ·
+        forecast = negócios abertos em retorno, projetados na conversão do próprio closer</span></div>
+    <div class="scroll"><table id="t-hier"></table></div>
+  </section>
+
+  <section class="card pad0 sec" id="negocios">
+    <div class="ch" style="padding:16px 16px 0"><h2>Negócios</h2><span class="sub" id="dealhint"></span></div>
+    <div class="fbar">
+      <input id="deal-busca" type="search" placeholder="Buscar por cliente, closer, produto, etapa…"
+        autocomplete="off" aria-label="Buscar negócio">
+      <select id="deal-an" aria-label="Filtrar por análise da call">
+        <option value="">Análise da call: todas</option>
+        <option value="com">Com análise</option>
+        <option value="sem">Sem análise</option>
+        <option value="8">Nota 8 ou mais</option>
+        <option value="65">Nota 6,5 a 7,9</option>
+        <option value="5">Nota abaixo de 6,5</option>
+      </select>
+      <button id="deal-limpa" type="button" class="lnk">limpar</button>
+    </div>
+    <div class="scroll"><table id="t-deals"></table></div>
+  </section>
+</div>
+<div class="pg" id="pg-reunioes" hidden>
+  <div class="ch"><h2>Reuniões</h2>
+    <span class="sub">análises da IA ICOMM · período do topo</span></div>
+  <div class="grid g5 sec" id="re-cards"></div>
+
+  <div class="grid g2 sec">
+    <div class="card"><div class="ch"><h2>Nota média por closer</h2>
+      <span class="sub">critério ICOMM/TF</span></div>
+      <div class="rank" id="re-rank"></div></div>
+    <div class="card bars" id="re-faixas"></div>
+  </div>
+
+  <section class="card pad0 sec">
+    <div class="ch" style="padding:16px 16px 0"><h2>Dores do cliente nas reuniões</h2>
+      <span class="sub">o problema que o lead trouxe, lido do texto da análise da call</span></div>
+    <div class="scroll"><table id="re-dores"></table></div>
+  </section>
+
+  <section class="card pad0 sec">
+    <div class="ch" style="padding:16px 16px 0"><h2>Objeções</h2>
+      <span class="sub">o que travou a venda · da reunião e do motivo da perda</span></div>
+    <div class="scroll"><table id="re-obj"></table></div>
+  </section>
+
+  <section class="card pad0 sec">
+    <div class="ch" style="padding:16px 16px 0"><h2>Quem contorna melhor</h2>
+      <span class="sub">só objeções ouvidas na reunião · ganhos ÷ vezes que enfrentou</span></div>
+    <div class="scroll"><table id="re-contorno"></table></div>
+  </section>
+
+  <section class="card sec">
+    <div class="ch"><h2>Resumo geral</h2><span class="tag">IA</span></div>
+    <div class="ai" id="re-resumo"></div>
+  </section>
+
+  <section class="card pad0 sec">
+    <div class="ch" style="padding:16px 16px 0"><h2>Motivos de perda</h2>
+      <span class="sub">os três mais frequentes por closer · segundo o motivo registrado no Pipedrive</span></div>
+    <div class="scroll"><table id="re-perdas"></table></div>
+  </section>
+
+  <section class="card pad0 sec">
+    <div class="ch" style="padding:16px 16px 0"><h2>Todas as análises</h2>
+      <span class="sub" id="re-lista-sub">clique para abrir a análise inteira</span></div>
+    <div class="scroll"><table id="re-lista"></table></div>
+  </section>
+</div>
+</main>
+</div>
+
+<script>
+/* ===== motor de render ===== */
+const BRL = n => "R$ " + Math.round(n).toLocaleString("pt-BR");
+const PCT = n => (isFinite(n) ? (n*100).toFixed(1).replace(".",",") : "0,0") + "%";
+const NUM = n => n.toFixed(1).replace(".",",");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+// Bloco que saiu da tela não pode derrubar a página: el() nunca devolve nulo.
+const NADA = { innerHTML:"", textContent:"", value:"", hidden:true,
+  addEventListener(){}, querySelectorAll(){return []}, classList:{add(){},toggle(){}}, style:{} };
+const el = id => document.getElementById(id) || NADA;
+const PD_URL = "https://icommescola.pipedrive.com/deal/";
+
+/* Casa arquivo do bucket com pessoa do painel, sem ninguém precisar cadastrar o
+   nome do arquivo. "luis.jpg", "Luis Castagne.png" e "castagne.jpeg" todos
+   encontram Luis Castagne; quem não tem arquivo fica nas iniciais.
+
+   Mora AQUI, e não no bloco de baixo: o bloco <script type="module"> tem escopo
+   próprio, então nada definido lá é enxergado por este. Foi exatamente esse o
+   erro que zerou o painel inteiro — a chamada estourava e a carga morria junto. */
+let ARQUIVOS = [], BUCKET_FOTOS = "";
+const POS_FOTO = {};   // preenchido pelo módulo com os enquadramentos
+
+/* Nome do arquivo de cada pessoa, do jeito que já funcionava para os closers.
+   É a via principal — não depende da listagem do bucket chegar a tempo.
+   Quem não estiver aqui ainda é procurado no bucket pelo nome do arquivo. */
+const ARQ_FOTO = {
+  // closers
+  "Christopher":"christopher.jpg", "Ellen Costa":"ellen.png", "Giovanni Souza":"giovanni.jpg",
+  "Lucas Gallera":"gallera.jpg", "Matheus Medeiros":"matheus_medeiros.jpg",
+  "Nickolas Rocha":"nickolas.jpg", "Renato Benedetti":"renato_benedetti.jpg",
+  "Guilherme Martin":"guilherme.jpg",
+  // SDR
+  "Gabriel Frizzo":"gabriel_frizzo.jpg", "Leticia":"leticia_sdr.jpg",
+  "Nicolas Gomes":"nicolas_sdr.jpg",
+  // time de CS (Buddy) — Andrea e Wallace ficam nas iniciais por opção
+  "Allana Bueno":"allana.jpg", "Luis Castagne":"luis.jpg",
+  "Robert Rodrigues":"robert.jpg", "Aline":"aline.jpg",
+};
+const semAcento = t => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+const pedacos = nome => semAcento(nome).split(/\s+/).filter(x=>x.length>2);
+function fotoDoBucket(nome){
+  if(!ARQUIVOS.length || !BUCKET_FOTOS) return null;
+  const ps = pedacos(nome);
+  if(!ps.length) return null;
+  let melhor = null, pontos = 0;
+  for(const arq of ARQUIVOS){
+    const base = semAcento(arq).replace(/\.[a-z0-9]+$/,"").replace(/[_\-.]+/g," ");
+    const p = ps.filter(x => base.includes(x)).length;
+    if(p > pontos){ pontos = p; melhor = arq; }
+  }
+  return pontos ? BUCKET_FOTOS + encodeURIComponent(melhor) : null;
+}
+const linkDeal = d => `<a href="${PD_URL}${d.id}" target="_blank" rel="noopener"
+  style="color:var(--roxo-2);text-decoration:none;font-family:var(--mono);font-size:10.5px"
+  title="abrir no Pipedrive">#${d.id}</a>`;
+
+let D = [], CONF = null, DIAG = [];
+const FOTO = {};
+const state = {de:"", ate:"", basedata:"desfecho", orig:"", vend:"", prod:"",
+               canal:"", lead:"", temp:"", ret:"retorno", kpi:"",
+               pg:"geral", aba:"hoje",
+               busca:"", an:"", cba:"cancelou", est:""};
+const abertosNo = new Set();
+
+const ETAPAS_RET = () => state.ret==="followup"
+  ? ["Retorno Agendado","Retorno Realizado","Follow UP"]
+  : ["Retorno Agendado","Retorno Realizado"];
+const emRet = d => d.s==="open" && ETAPAS_RET().includes(d.et);
+const dataRef = d => state.basedata==="criacao" ? d.dCriacao : d.dDesfecho;
+const faixa = n => n==null ? null : n>=8 ? "forte" : n>=6.5 ? "boa" : n>=5 ? "mediana" : "grave";
+const INI = n => String(n).split(" ").map(p=>p[0]).slice(0,2).join("").toUpperCase();
+const AV = (nome,tam) => {
+  // A listagem do bucket é assíncrona e costuma chegar depois da primeira tela.
+  // Resolver aqui, na hora de desenhar, evita que quem só tem foto no bucket
+  // (o time de CS) fique preso nas iniciais por causa da ordem de chegada.
+  let f = FOTO[nome];
+  if(!f?.url){
+    const arq = ARQ_FOTO[nome];
+    const u = arq ? BUCKET_FOTOS + arq : fotoDoBucket(nome);
+    if(u) f = FOTO[nome] = { url:u, pos: POS_FOTO[nome] ?? "50% 22%" };
+  }
+  return f && f.url
+    ? `<img class="av" src="${f.url}" alt="" width="${tam}" height="${tam}"
+        style="width:${tam}px;height:${tam}px;object-position:${f.pos||"50% 22%"}">`
+    : `<span class="av" style="width:${tam}px;height:${tam}px;font-size:${(tam*0.36).toFixed(1)}px">${INI(nome)}</span>`;
+};
+
+function fill(sel, vals, all){
+  const atual = sel.value;
+  const opts = [...new Set(vals.filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  sel.innerHTML = `<option value="">${all}</option>` + opts.map(v=>`<option>${esc(v)}</option>`).join("");
+  if(opts.includes(atual)) sel.value = atual;
+}
+const filtrosComuns = d =>
+  (!state.orig  || d.orig  === state.orig) &&
+  (!state.vend  || d.v     === state.vend) &&
+  (!state.prod  || d.p     === state.prod) &&
+  (!state.canal || d.canal === state.canal) &&
+  (!state.lead  || d.lead  === state.lead) &&
+  (!state.temp  || d.tmp   === state.temp);
+
+/* recorte do período — é o que o Insights conta */
+function base(){
+  return D.filter(d => { const r = dataRef(d); return r && r>=state.de && r<=state.ate; })
+          .filter(filtrosComuns);
+}
+/* carteira aberta de hoje — não depende do período */
+function carteira(){ return D.filter(d => d.s==="open").filter(filtrosComuns); }
+
+function visible(){
+  const b = base();
+  if(state.kpi==="won")   return b.filter(d=>d.s==="won");
+  if(state.kpi==="lost")  return b.filter(d=>d.s==="lost");
+  if(state.kpi==="ret")   return carteira().filter(emRet);
+  if(state.kpi==="churn") return b.filter(d=>d.churn);
+  return b;
+}
+function agg(rows, ret){
+  const won=rows.filter(d=>d.s==="won"), lost=rows.filter(d=>d.s==="lost"),
+        open=rows.filter(d=>d.s==="open"), churn=rows.filter(d=>d.churn);
+  const emR = ret ?? open.filter(d=>ETAPAS_RET().includes(d.et));
+  const receita=won.reduce((a,d)=>a+d.val,0), reemb=churn.reduce((a,d)=>a+(d.reemb||0),0);
+  const comNota=rows.filter(d=>d.an);
+  const lista=won.reduce((a,d)=>a+(d.precoLista||0),0);
+  return {
+    opp:rows.length, won:won.length, lost:lost.length, ret:emR.length,
+    outras:open.length-open.filter(d=>ETAPAS_RET().includes(d.et)).length,
+    q:emR.filter(d=>d.tmp==="Quente").length, m:emR.filter(d=>d.tmp==="Morno").length,
+    f:emR.filter(d=>d.tmp==="Frio").length,
+    churn:churn.length, reemb,
+    conv: rows.length ? won.length/rows.length : 0,
+    net:  rows.length ? (won.length-churn.length)/rows.length : 0,
+    receita, receitaLiq:receita-reemb,
+    ticket: won.length ? receita/won.length : 0,
+    score: comNota.length ? comNota.reduce((a,d)=>a+d.an.nota,0)/comNota.length : null,
+    lista, desc: lista ? 1-receita/lista : null,
+    ...forecast(open, rows.length ? won.length/rows.length : 0),
+    ...receitaRet(won, receita),
+    ...receitaQuente(won, receita),
+    ciclo: cicloMedio(won),
+  };
+}
+/* O que ainda pode virar receita: aberto com retorno agendado ou parado numa etapa de RET.
+   A projeção usa a conversão observada do próprio recorte — não é meta, é o que a régua
+   atual entrega se nada mudar. */
+function forecast(open, conv){
+  const f = open.filter(d => d.retAgendado || ETAPAS_RET().includes(d.et));
+  const fVal = f.reduce((a,d)=>a+d.val,0);
+  return { fOpp:f.length, fVal, fConv:conv, fWon:f.length*conv, fRec:fVal*conv };
+}
+/* Quanto da receita ganha passou por retorno — é o que justifica a régua existir. */
+function receitaRet(won, receita){
+  const r = won.filter(d => d.retAgendado || d.retRealizado || d.nret>0);
+  const rec = r.reduce((a,d)=>a+d.val,0);
+  return { retWon:r.length, retRec:rec, retPct: receita ? rec/receita : 0 };
+}
+/* Quanto da receita saiu de negócio marcado como Quente — é o teste da temperatura:
+   se o quente não vende mais que o resto, o campo virou enfeite. */
+function receitaQuente(won, receita){
+  const q = won.filter(d => d.tmp==="Quente");
+  const rec = q.reduce((a,d)=>a+d.val,0);
+  return { qWon:q.length, qRec:rec, qPct: receita ? rec/receita : 0 };
+}
+function cicloMedio(won){
+  const c = won.map(d=>difDias(d.dCriacao, d.dGanho)).filter(x=>x!=null && x>=0);
+  return c.length ? c.reduce((a,b)=>a+b,0)/c.length : null;
+}
+
+/* ---------- anéis ---------- */
+function ring(pct,cor,txt){
+  const R=21,C=2*Math.PI*R,off=C*(1-Math.max(0,Math.min(1,pct)));
+  return `<div class="ring"><svg width="52" height="52" viewBox="0 0 52 52">
+    <circle cx="26" cy="26" r="${R}" fill="none" stroke="var(--card-2)" stroke-width="5"/>
+    <circle cx="26" cy="26" r="${R}" fill="none" stroke="${cor}" stroke-width="5" stroke-linecap="round"
+      stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"
+      transform="rotate(-90 26 26)"/></svg><span class="pc" style="color:${cor}">${txt}</span></div>`;
+}
+function renderTiles(a, aCart){
+  const t=[
+    {k:"opp",lab:"OPP",v:a.opp,p:1,c:"var(--roxo-2)",pc:"100%",
+     dt:`${a.won}G · ${a.lost}L · ${aCart.ret}R`},
+    {k:"won",lab:"Ganhos",v:a.won,p:a.conv,c:"var(--oliva)",pc:PCT(a.conv),dt:BRL(a.receita)},
+    {k:"lost",lab:"Lost",v:a.lost,p:a.opp?a.lost/a.opp:0,c:"var(--rosa)",pc:PCT(a.opp?a.lost/a.opp:0),dt:"motivo no drill"},
+    {k:"ret",lab:"Em retorno",v:aCart.ret,p:aCart.opp?aCart.ret/aCart.opp:0,c:"var(--peri)",
+     pc:PCT(aCart.opp?aCart.ret/aCart.opp:0),temps:aCart},
+    {k:"conv",lab:"Conv. bruta",v:PCT(a.conv),p:a.conv,c:"var(--lima)",pc:"",dt:`${a.won} ÷ ${a.opp}`},
+    {k:"churn",lab:"Churn",v:a.churn,p:a.won?a.churn/a.won:0,c:"var(--rosa)",
+     pc:PCT(a.won?a.churn/a.won:0),dt:a.reemb?BRL(a.reemb):"nenhum"},
+    {k:"net",lab:"Conv. net",v:PCT(a.net),p:a.net,c:"var(--roxo)",pc:"",
+     dt:`(${a.won} − ${a.churn}) ÷ ${a.opp}`},
+  ];
+  const clicavel=["won","lost","ret","churn"];
+  el("tiles").innerHTML=t.map(x=>`<button type="button" class="tile${state.kpi===x.k?" on":""}"
+    data-k="${clicavel.includes(x.k)?x.k:""}">
+    ${ring(x.p,x.c,x.pc)}<span style="min-width:0"><span class="lab">${x.lab}</span>
+    <b class="val">${x.v}</b>${x.temps
+      ? `<span class="temps"><i class="tchip tq">Q ${x.temps.q}</i><i class="tchip tm">M ${x.temps.m}</i><i class="tchip tf">F ${x.temps.f}</i></span>`
+      : `<span class="dt">${x.dt}</span>`}</span></button>`).join("");
+  el("tiles").querySelectorAll(".tile").forEach(b=>b.addEventListener("click",()=>{
+    const k=b.dataset.k; if(!k) return;
+    state.kpi = state.kpi===k?"":k; render();
+  }));
+}
+
+/* ---------- série do período (semana ou mês, calculada dos dados) ---------- */
+function serie(){
+  const de=new Date(state.de+"T12:00:00"), ate=new Date(state.ate+"T12:00:00");
+  const dias=Math.round((ate-de)/86400000)+1;
+  const porMes = dias > 92;
+  const rotulo = d => porMes
+    ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`
+    : (()=>{ const x=new Date(d); x.setDate(x.getDate()-((x.getDay()+6)%7));
+             return x.toISOString().slice(0,10); })();
+  const buckets=new Map();
+  for(const d of base()){
+    const r=dataRef(d); if(!r) continue;
+    const k=rotulo(new Date(r+"T12:00:00"));
+    if(!buckets.has(k)) buckets.set(k,{opp:0,won:0,churn:0});
+    const b=buckets.get(k); b.opp++; if(d.s==="won") b.won++; if(d.churn) b.churn++;
+  }
+  const chaves=[...buckets.keys()].sort();
+  return { porMes, pontos: chaves.map(k=>{
+    const b=buckets.get(k);
+    return { k, opp:b.opp, bruta:b.opp?b.won/b.opp:0, net:b.opp?(b.won-b.churn)/b.opp:0,
+      rot: porMes
+        ? new Date(k+"-01T12:00:00").toLocaleDateString("pt-BR",{month:"short"}).replace(".","")
+        : k.slice(8,10)+"/"+k.slice(5,7) };
+  })};
+}
+function renderArea(){
+  const s=serie(), p=s.pontos;
+  el("areanota").textContent = p.length
+    ? `Agrupado por ${s.porMes?"mês":"semana"} · calculado dos negócios do período`
+    : "";
+  if(p.length<2){
+    el("area").innerHTML=`<div class="empty">Período curto demais para a série — escolha um intervalo maior.</div>`;
+    return;
+  }
+  const teto=Math.max(0.1, Math.ceil(Math.max(...p.map(x=>x.bruta))*10)/10);
+  const W=560,H=176,PL=30,PR=10,PT=26,PB=22;
+  const x=i=>PL+i*(W-PL-PR)/(p.length-1), y=v=>PT+(1-v/teto)*(H-PT-PB);
+  const ln=f=>p.map((m,i)=>(i?"L":"M")+x(i).toFixed(1)+" "+y(f(m)).toFixed(1)).join(" ");
+  const passo=Math.ceil(p.length/8);
+  el("area").innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img"
+    aria-label="Conversão bruta e líquida no período">
+    <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--lima)" stop-opacity=".42"/>
+      <stop offset="100%" stop-color="var(--lima)" stop-opacity="0"/></linearGradient></defs>
+    ${[0.5,1].map(f=>`<line x1="${PL}" y1="${y(f*teto)}" x2="${W-PR}" y2="${y(f*teto)}"
+      stroke="var(--line)" stroke-width="1"/><text x="${PL-6}" y="${y(f*teto)+3.5}" text-anchor="end"
+      font-size="9" fill="var(--faint)" font-family="var(--mono)">${Math.round(f*teto*100)}%</text>`).join("")}
+    <path d="${ln(m=>m.net)} L ${x(p.length-1)} ${H-PB} L ${x(0)} ${H-PB} Z" fill="url(#g1)"/>
+    <path d="${ln(m=>m.bruta)}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <path d="${ln(m=>m.net)}" fill="none" stroke="var(--lima)" stroke-width="2.4" stroke-linejoin="round"/>
+    <circle cx="${x(p.length-1)}" cy="${y(p[p.length-1].net)}" r="4" fill="var(--lima)"/>
+    ${p.map((m,i)=>`<circle cx="${x(i)}" cy="${y(m.net)}" r="2.5" fill="var(--lima)" opacity=".7"/>`).join("")}
+    ${p.map((m,i)=>`<text x="${x(i)}" y="${y(m.net)-8}" text-anchor="middle" font-size="9.5"
+      font-weight="700" fill="var(--lima)" font-family="var(--mono)">${(m.net*100).toFixed(0)}%</text>`).join("")}
+    ${p.map((m,i)=>`<text x="${x(i)}" y="${y(m.bruta)-8}" text-anchor="middle" font-size="8.5"
+      fill="var(--muted)" font-family="var(--mono)">${(m.bruta*100).toFixed(0)}%</text>`).join("")}
+    ${p.map((m,i)=>i%passo===0?`<text x="${x(i)}" y="${H-4}" text-anchor="middle" font-size="8.5"
+      fill="var(--faint)">${m.rot} <tspan fill="var(--faint)">· ${m.opp}</tspan></text>`:"").join("")}</svg>`;
+}
+
+/* ---------- rosca da carteira ---------- */
+function renderDonut(aCart, rowsCart){
+  const d=[["Quente",aCart.q,"var(--rosa)"],["Morno",aCart.m,"var(--ambar)"],
+           ["Frio",aCart.f,"var(--peri)"],
+           ["Sem temperatura",aCart.ret-aCart.q-aCart.m-aCart.f,"var(--card-2)"]].filter(x=>x[1]>0);
+  const tot=d.reduce((s,x)=>s+x[1],0);
+  el("retsub").textContent=aCart.ret+" em retorno · carteira de hoje";
+  if(!tot){ el("donut").innerHTML='<div class="empty">Nenhum negócio em retorno</div>'; return; }
+  const R=52,C=2*Math.PI*R; let off=0;
+  const arcs=d.map(([,v,c])=>{const len=C*v/tot;
+    const s=`<circle cx="70" cy="70" r="${R}" fill="none" stroke="${c}" stroke-width="17"
+      stroke-dasharray="${(len-3).toFixed(1)} ${(C-len+3).toFixed(1)}"
+      stroke-dashoffset="${(-off).toFixed(1)}" transform="rotate(-90 70 70)" stroke-linecap="round"/>`;
+    off+=len; return s}).join("");
+  const etapas={}; rowsCart.forEach(x=>etapas[x.et]=(etapas[x.et]||0)+1);
+  const lista=Object.entries(etapas).sort((x,y)=>y[1]-x[1]);
+  const totalAberto=rowsCart.length;
+  el("donut").innerHTML=`<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+    <svg width="140" height="140" viewBox="0 0 140 140" style="flex:none" role="img" aria-label="Carteira por temperatura">
+      ${arcs}<text x="70" y="66" text-anchor="middle" font-family="var(--mono)" font-size="26"
+        font-weight="600" fill="var(--fg)">${aCart.ret}</text>
+      <text x="70" y="84" text-anchor="middle" font-size="10" fill="var(--faint)" letter-spacing="1">EM RETORNO</text></svg>
+    <div style="display:flex;flex-direction:column;gap:9px;min-width:130px">
+      ${d.map(([l,v,c])=>`<div style="display:flex;align-items:center;gap:8px;font-size:12.5px">
+        <i style="width:9px;height:9px;border-radius:3px;background:${c};flex:none"></i>
+        <span style="color:var(--muted);flex:1">${l}</span>
+        <b style="font-family:var(--mono);font-size:12.5px">${v}</b></div>`).join("")}</div></div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+        color:var(--faint);margin-bottom:9px">Carteira aberta por etapa · ${totalAberto} negócios</div>
+      ${lista.map(([e,n])=>`<div style="display:flex;justify-content:space-between;gap:12px;
+        padding:5px 0;font-size:12.5px"><span style="color:var(--muted)">${esc(e)}</span>
+        <b style="font-family:var(--mono)">${n}</b></div>`).join("")
+        || '<div class="dim" style="font-size:12.5px">Nenhum negócio aberto</div>'}
+    </div>`;
+}
+
+/* ---------- hierarquia ---------- */
+function badgeStatus(d){
+  return d.churn ? '<span class="pill p-churn">Churn</span>'
+    : d.s==="won"  ? '<span class="pill p-won">Ganho</span>'
+    : d.s==="lost" ? '<span class="pill p-lost">Perdido</span>'
+    : '<span class="pill p-open">Aberto</span>';
+}
+const LEAD_COR={A:"var(--oliva)",B:"var(--ciano)",C:"var(--ambar)",
+                D:"var(--peri)",E:"var(--rosa)",F:"var(--faint)"};
+const chipLead=l=>l?`<span class="nota" style="background:color-mix(in srgb,${LEAD_COR[l]||"var(--faint)"} 18%,transparent);color:${LEAD_COR[l]||"var(--faint)"}">${esc(l)}</span>`:'<span class="dim">—</span>';
+// nos níveis agregados, mostra o topo da distribuição (ex.: "B 5 · A 3")
+function mixLead(rows){
+  const c={}; rows.forEach(d=>{ if(d.lead) c[d.lead]=(c[d.lead]||0)+1; });
+  const ks=Object.entries(c).sort((x,y)=>y[1]-x[1]).slice(0,2);
+  return ks.length?ks.map(([k,n])=>`${chipLead(k)}<span class="dim" style="font-size:10.5px"> ${n}</span>`).join(" "):'<span class="dim">—</span>';
+}
+function cel(a,rows){
+  const ql = rows ? mixLead(rows) : '<span class="dim">—</span>';
+  const sc=a.score!=null?`<span class="nota n-${faixa(a.score)}">${NUM(a.score)}</span>`:'<span class="dim">—</span>';
+  // a qualificação vem antes do OPP: primeiro que lead entrou, depois o que virou
+  return `<td class="n">${ql}</td><td class="n">${a.opp}</td>
+    <td class="n">${a.fOpp?`<span style="color:var(--peri)">${a.fOpp}</span>
+      <div class="mini">${BRL(a.fVal)}</div>`:'<span class="dim">—</span>'}</td>
+    <td class="n" style="color:var(--oliva)">${a.won}</td>
+    <td class="n">${a.fOpp?`<span style="color:var(--ciano)">${NUM(a.fWon)}</span>
+      <div class="mini">${BRL(a.fRec)} · ${PCT(a.fConv)}</div>`:'<span class="dim">—</span>'}</td>
+    <td class="n" style="color:var(--rosa)">${a.lost}</td>
+    <td class="n">${a.ret} <span class="dim">${a.q}/${a.m}/${a.f}</span></td>
+    <td class="n">${a.outras||0}</td>
+    <td class="n">${PCT(a.conv)}</td>
+    <td class="n" style="color:${a.churn?"var(--rosa)":"inherit"}">${a.churn?"−"+a.churn:"0"}</td>
+    <td class="n" style="color:var(--lima);font-weight:600">${PCT(a.net)}</td>
+    <td class="n">${a.ciclo!=null?Math.round(a.ciclo)+"d":'<span class="dim">—</span>'}</td>
+    <td class="n">${sc}</td>
+    <td class="n">${a.receita?BRL(a.receita):'<span class="dim">—</span>'}</td>
+    <td class="n">${a.retRec?`${BRL(a.retRec)}
+      <div class="mini">${PCT(a.retPct)} · ${a.retWon} ganho(s)</div>`:'<span class="dim">—</span>'}</td>
+    <td class="n">${a.qRec?`<span style="color:var(--rosa)">${BRL(a.qRec)}</span>
+      <div class="mini">${PCT(a.qPct)} · ${a.qWon} ganho(s)</div>`:'<span class="dim">—</span>'}</td>
+    <td class="n">${a.ticket?BRL(a.ticket):'<span class="dim">—</span>'}</td>`;
+}
+const noFcst    = d => d.s==="open" && (d.retAgendado || ETAPAS_RET().includes(d.et));
+const veioDeRet = d => !!(d.retAgendado || d.retRealizado || d.nret>0);
+function renderHier(rows){
+  const tw=k=>`<button class="tw" data-node="${esc(k)}" aria-label="abrir">${abertosNo.has(k)?"▾":"▸"}</button>`;
+  let html="";
+  // por receita, como o ranking — quem vendeu mais fica em cima.
+  // Empate em zero desempata por volume de oportunidades.
+  const porReceita = (lista, chave) => [...new Set(lista.map(chave))]
+    .map(k => { const r = lista.filter(d => chave(d)===k); const a = agg(r);
+                return { k, r, receita:a.receita, opp:a.opp }; })
+    .sort((x,y) => y.receita - x.receita || y.opp - x.opp
+                || String(x.k).localeCompare(String(y.k),"pt-BR"));
+
+  for(const {k:v, r:rv} of porReceita(rows, d=>d.v)){
+    html+=`<tr class="lvl1"><td class="name"><span class="who">${tw(v)}${AV(v,24)}${esc(v)}</span></td>${cel(agg(rv),rv)}</tr>`;
+    if(!abertosNo.has(v)) continue;
+    for(const {k:p, r:rp} of porReceita(rv, d=>d.p)){
+      const kp=v+"›"+p;
+      html+=`<tr class="lvl2"><td class="name ind2">${tw(kp)}${esc(p)}</td>${cel(agg(rp),rp)}</tr>`;
+      if(!abertosNo.has(kp)) continue;
+      for(const d of [...rp].sort((a,b)=>b.val-a.val)){
+        const cic=d.s==="won"?difDias(d.dCriacao,d.dGanho):null;
+        const sc=d.an?`<span class="nota n-${faixa(d.an.nota)}">${NUM(d.an.nota)}</span>`:'<span class="dim">—</span>';
+        html+=`<tr class="lvl3"><td class="name ind3">
+          <button class="tw" data-lead="${d.id}" aria-label="detalhar">${abertosNo.has("L"+d.id)?"▾":"▸"}</button>${esc(d.t)} ${badgeStatus(d)}</td>
+          <td class="n">${chipLead(d.lead)}</td><td class="n">1</td>
+          <td class="n">${noFcst(d)?`<span style="color:var(--peri)">1</span>
+            <div class="mini">${BRL(d.val)}</div>`:'<span class="dim">—</span>'}</td>
+          <td class="n">${d.s==="won"?1:0}</td><td class="n dim">—</td>
+          <td class="n">${d.s==="lost"?1:0}</td>
+          <td class="n">${emRet(d)?1:0} <span class="dim">${d.tmp?d.tmp[0]:"—"}</span></td>
+          <td class="n">${d.s==="open"&&!emRet(d)?1:0}</td><td class="n dim">—</td>
+          <td class="n" style="color:${d.churn?"var(--rosa)":"inherit"}">${d.churn?"−1":"0"}</td>
+          <td class="n dim">—</td>
+          <td class="n">${cic!=null?cic+"d":'<span class="dim">—</span>'}</td>
+          <td class="n">${sc}</td>
+          <td class="n">${BRL(d.val)}</td>
+          <td class="n">${d.s==="won"&&veioDeRet(d)?BRL(d.val):'<span class="dim">—</span>'}</td>
+          <td class="n">${d.s==="won"&&d.tmp==="Quente"
+            ?`<span style="color:var(--rosa)">${BRL(d.val)}</span>`:'<span class="dim">—</span>'}</td>
+          <td class="n dim">—</td></tr>`;
+        if(abertosNo.has("L"+d.id)) html+=`<tr class="detail"><td colspan="18">${detalhe(d)}</td></tr>`;
+      }
+    }
+  }
+  el("t-hier").innerHTML=`<thead><tr><th style="min-width:280px">Vendedor › Produto › Lead</th>
+    <th class="n">Qualif.</th><th class="n">OPP</th><th class="n">Fcst OPP</th>
+    <th class="n">Ganhos</th><th class="n">Fcst ganhos</th><th class="n">Lost</th>
+    <th class="n">RET Q/M/F</th><th class="n">Outras</th><th class="n">Conv.</th><th class="n">Churn</th>
+    <th class="n">Conv. net</th><th class="n">Ciclo</th><th class="n">Score</th>
+    <th class="n">Receita</th><th class="n">Receita RET</th><th class="n">Receita Quente</th>
+    <th class="n">Ticket</th></tr></thead>
+    <tbody>${html||'<tr><td colspan="18" class="empty">Nenhum negócio no período</td></tr>'}
+    ${html?`<tr class="total"><td class="name">Total</td>${cel(agg(rows),rows)}</tr>`:""}</tbody>`;
+  el("t-hier").querySelectorAll("[data-node]").forEach(b=>b.addEventListener("click",()=>{
+    const k=b.dataset.node; abertosNo.has(k)?abertosNo.delete(k):abertosNo.add(k); render(); }));
+  el("t-hier").querySelectorAll("[data-lead]").forEach(b=>b.addEventListener("click",()=>{
+    const k="L"+b.dataset.lead; abertosNo.has(k)?abertosNo.delete(k):abertosNo.add(k); render(); }));
+}
+function detalhe(d){
+  const br=s=>s?new Date(s+"T12:00:00").toLocaleDateString("pt-BR"):"—";
+  const bits=[];
+  if(d.s==="lost"){
+    bits.push(["Motivo (Pipedrive)", esc(d.lm)||'<span class="dim">não informado</span>']);
+    if(d.ld) bits.push(["Detalhe da perda", esc(d.ld)]);
+    bits.push(["Data da perda", br(d.lt)]);
+  }
+  if(d.churn){
+    bits.push(["Motivo do churn", d.cm?.length?d.cm.map(esc).join(", "):'<span class="dim">não informado</span>']);
+    bits.push(["Reembolsado", d.reemb?BRL(d.reemb):"—"]);
+    bits.push(["Cancelado em", br(d.dc)]);
+  }
+  bits.push(["Produto", esc(d.p)+(d.pFonte?` <span class="dim">(${d.pFonte})</span>`:"")]);
+  bits.push(["Preço de tabela", d.precoLista?BRL(d.precoLista):'<span class="dim">sem item anexado</span>']);
+  bits.push(["Praticado", BRL(d.val)+(d.precoLista?` <span class="dim">(desc. ${PCT(1-d.val/d.precoLista)})</span>`:"")]);
+  if(d.valPago) bits.push(["Valor pago", BRL(d.valPago)]);
+  if(d.itens?.length) bits.push(["Itens anexados",
+    d.itens.map(i=>`${esc(i.nome)} · ${i.qtd}un · ${BRL(i.preco)}`).join("<br>")]);
+  bits.push(["Funil / etapa", `${esc(d.funil)||"—"} · ${esc(d.et)}`]);
+  bits.push(["Canal de conexão", esc(d.canal)||'<span class="dim">—</span>']);
+  bits.push(["Origem contratual", esc(d.orig)||'<span class="dim">—</span>']);
+  bits.push(["Lead", esc(d.lead)||'<span class="dim">—</span>']);
+  bits.push(["SDR", esc(d.sdr)||'<span class="dim">—</span>']);
+  bits.push(["Retornos", (d.nret??0)+(d.dpar!=null?` · parado há ${d.dpar}d`:"")]);
+  bits.push(["Criado / desfecho", br(d.dCriacao)+" → "+br(d.dDesfecho)]);
+  if(d.saude) bits.push(["Saúde do aluno", esc(d.saude)]);
+  if(d.obs) bits.push(["Observação da call", esc(d.obs)]);
+  if(d.obj?.length) bits.push(["Objeções", d.obj.map(o=>
+    `<span class="objchip" title="${o.origem==="call"?"da análise da call":"do motivo da perda"}"
+      style="${o.origem==="perda"?"background:color-mix(in srgb,var(--ambar) 16%,transparent);color:var(--ambar)":""}">${esc(o.nome)}</span>`).join("")]);
+
+  const a=d.an;
+  const bloco=(t,cls,arr)=>Array.isArray(arr)&&arr.length
+    ? `<div class="an-col"><h5 class="${cls}">${t}</h5><ul>${arr.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`:"";
+  const analise=a?`<div class="an">
+    <div class="an-top">
+      <span class="an-stat">Nota <b>${NUM(a.nota)}/10</b></span>
+      ${a.dur?`<span class="an-stat">Duração <b>${a.dur} min</b></span>`:""}
+      ${a.cp!=null?`<span class="an-stat">Fala closer <b>${a.cp}%</b></span>`:""}
+      ${a.ok===false?'<span class="an-alert">⚠ parcelamento não fecha</span>':""}
+    </div>
+    ${a.resumo?`<p class="an-resumo">${esc(a.resumo)}</p>`:""}
+    <div class="an-cols">${bloco("O que deu certo","h-certo",a.certo)}${bloco("O que deu errado","h-erro",a.erro)}${bloco("Como conduzir","h-cond",a.cond)}</div>
+    ${a.porque?`<p class="an-porque"><b>Por que ${d.s==="won"?"fechou":"não fechou"}:</b> ${esc(a.porque)}</p>`:""}</div>`
+    : `<div class="an"><p class="an-resumo dim">Sem análise de call para este negócio.</p></div>`;
+  return `<div class="detail-in">${bits.map(([k,v])=>`<dl class="dl"><dt>${k}</dt><dd>${v}</dd></dl>`).join("")}</div>${analise}`;
+}
+
+/* ---------- retorno ---------- */
+function renderRetorno(rowsCart, rowsPer){
+  const ret=rowsCart.filter(emRet);
+  const emEtapaRet = d => d.et==="Retorno Agendado" || d.et==="Retorno Realizado";
+  const ag=rowsCart.filter(d=>d.et==="Retorno Agendado").length;
+  const rz=rowsCart.filter(d=>d.et==="Retorno Realizado").length;
+  const fup=rowsCart.filter(d=>d.et==="Follow UP");
+  const zap=rowsCart.filter(d=>emEtapaRet(d) && /whats/i.test(d.canal||""));
+  const meet=rowsCart.filter(d=>emEtapaRet(d) && /meetime/i.test(d.canal||""));
+  const semCanal=rowsCart.filter(d=>emEtapaRet(d) && !d.canal).length;
+  const comp=(ag+rz)?rz/(ag+rz):0;
+  const parados=rowsCart.filter(d=>d.dpar>7).length;
+  el("retsub2").textContent=`${ret.length} em retorno · ${BRL(ret.reduce((a,d)=>a+d.val,0))} · carteira de hoje`;
+  el("ret-stats").innerHTML=[
+    ["Retorno WhatsApp",zap.length,BRL(zap.reduce((a,d)=>a+d.val,0))],
+    ["Retorno Meetime",meet.length,BRL(meet.reduce((a,d)=>a+d.val,0))],
+    ["Follow UP",fup.length,fup.length?BRL(fup.reduce((a,d)=>a+d.val,0)):"sem data marcada"],
+    ["Comparecimento",PCT(comp),`${rz} realizados de ${ag+rz}`],
+    ["Parados > 7 dias",parados,parados?"exigem ação":"nenhum"],
+  ].map(([k,v,s])=>`<div class="stat"><span class="k">${k}</span>
+    <span class="v" style="color:${k==="Parados > 7 dias"&&v?"var(--rosa)":
+      k==="Retorno WhatsApp"?"var(--oliva)":k==="Retorno Meetime"?"var(--peri)":
+      k==="Follow UP"?"var(--ambar)":"inherit"}">${v}</span>
+    <span class="s">${s}</span></div>`).join("")
+    + (semCanal?`<div class="dim" style="grid-column:1/-1;font-size:11px">
+        ${semCanal} negócio(s) em retorno sem "Canal de Conexão" preenchido — não entram em WhatsApp nem Meetime.</div>`:"");
+
+  const canais=[...new Set(rowsPer.map(d=>d.canal||"Sem canal"))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  const body=canais.map(c=>{
+    const rc=rowsPer.filter(d=>(d.canal||"Sem canal")===c), a=agg(rc);
+    const oc=rc.filter(d=>d.s==="open");
+    const cp=oc.filter(d=>d.dpar!=null), cr=rc.filter(d=>d.nret!=null);
+    return `<tr><td class="name">${esc(c)}</td><td class="n">${rc.length}</td>
+      <td class="n">${oc.filter(emRet).length}</td><td class="n">${a.won}</td><td class="n">${a.lost}</td>
+      <td class="n">${PCT(a.conv)}</td>
+      <td class="n">${cr.length?NUM(cr.reduce((x,d)=>x+(d.nret||0),0)/cr.length):'<span class="dim">—</span>'}</td>
+      <td class="n">${cp.length?NUM(cp.reduce((x,d)=>x+d.dpar,0)/cp.length)+"d":'<span class="dim">—</span>'}</td></tr>`;
+  }).join("");
+  el("t-canal").innerHTML=`<thead><tr><th>Canal de conexão</th><th class="n">Negócios</th>
+    <th class="n">Em retorno</th><th class="n">Ganhos</th><th class="n">Lost</th><th class="n">Conv.</th>
+    <th class="n">Méd. retornos</th><th class="n">Parado</th></tr></thead>
+    <tbody>${body||'<tr><td colspan="8" class="empty">Sem dados</td></tr>'}</tbody>`;
+
+  const fx=[["0 a 3 dias",0,3],["4 a 7 dias",4,7],["8 a 14 dias",8,14],["15 dias ou mais",15,1e9]];
+  const dados=fx.map(([l,a,b])=>[l,rowsCart.filter(d=>d.dpar!=null&&d.dpar>=a&&d.dpar<=b).length]);
+  const max=Math.max(1,...dados.map(x=>x[1]));
+  el("ret-aging").innerHTML=`<h3>Há quanto tempo estão parados</h3>`+dados.map(([l,n],i)=>
+    `<div class="bar"><span class="lbl">${l}</span><span class="num">${n}</span>
+     <span class="track"><span class="fill ${i>=2?"":"fill-o"}" style="width:${n/max*100}%"></span></span></div>`).join("");
+
+  const lin=[...ret].sort((a,b)=>(b.dpar??0)-(a.dpar??0)).slice(0,50).map(d=>{
+    const cor=d.tmp==="Quente"?"var(--rosa)":d.tmp==="Morno"?"var(--ambar)":"var(--peri)";
+    return `<tr><td class="name">${esc(d.t)}</td>
+      <td><span class="who">${AV(d.v,22)}${esc(d.v)}</span></td>
+      <td class="dim" style="min-width:150px">${esc(d.p)}</td>
+      <td><span class="pill p-open">${esc(d.et)}</span></td>
+      <td>${d.tmp?`<span class="pill" style="background:color-mix(in srgb,${cor} 18%,transparent);color:${cor}">${d.tmp}</span>`:'<span class="dim">—</span>'}</td>
+      <td class="dim">${esc(d.canal)||"—"}</td>
+      <td class="n">${BRL(d.val)}</td>
+      <td class="n" style="color:${d.dpar>14?"var(--rosa)":"inherit"}">${d.dpar!=null?d.dpar+"d":"—"}</td></tr>`;
+  }).join("");
+  el("t-retorno").innerHTML=`<thead><tr><th>Negócio</th><th>Vendedor</th><th>Produto</th><th>Etapa</th>
+    <th>Temp.</th><th>Canal</th><th class="n">Valor</th><th class="n">Parado</th></tr></thead>
+    <tbody>${lin||'<tr><td colspan="8" class="empty">Nenhum negócio em retorno</td></tr>'}</tbody>`;
+}
+
+/* ---------- objeções ---------- */
+function renderObj(rows){
+  const m={};
+  rows.forEach(d=>(d.obj||[]).forEach(o=>{
+    const k=o.nome;
+    m[k]=m[k]||{n:0,won:0,lost:0,open:0,call:0,perda:0,closers:{}};
+    m[k].n++; m[k][d.s]++; m[k][o.origem]++;
+    m[k].closers[d.v]=(m[k].closers[d.v]||0)+1; }));
+  const keys=Object.keys(m).sort((a,b)=>m[b].n-m[a].n);
+  const body=keys.map(k=>{
+    const o=m[k], fech=o.won+o.lost, taxa=fech?o.won/fech:null;
+    const top=Object.entries(o.closers).sort((a,b)=>b[1]-a[1])[0];
+    const fonte = o.call&&o.perda ? "call + perda" : o.call ? "análise da call" : "motivo da perda";
+    return `<tr><td style="white-space:normal">${esc(k)}
+        <div class="dim" style="font-size:10.5px">${fonte}</div></td><td class="n">${o.n}</td>
+      <td class="n" style="color:var(--oliva)">${o.won}</td>
+      <td class="n" style="color:var(--rosa)">${o.lost}</td><td class="n">${o.open}</td>
+      <td class="n" style="color:${taxa!=null&&taxa<0.35?"var(--rosa)":"inherit"}">${taxa!=null?PCT(taxa):"—"}</td>
+      <td class="dim">${top?esc(top[0])+" ("+top[1]+")":"—"}</td></tr>`;
+  }).join("");
+  el("t-obj").innerHTML=`<thead><tr><th>Objeção / motivo</th><th class="n">Vezes</th><th class="n">Ganhos</th>
+    <th class="n">Perdas</th><th class="n">Abertos</th><th class="n">Contorno</th><th>Mais afetado</th></tr></thead>
+    <tbody>${body||'<tr><td colspan="7" class="empty">Nenhuma objeção nem motivo de perda no período</td></tr>'}</tbody>`;
+  const max=Math.max(1,...keys.map(k=>m[k].n));
+  el("obj-bars").innerHTML=keys.length
+    ? `<h3>Frequência</h3>`+keys.slice(0,12).map(k=>{
+        const o=m[k], fech=o.won+o.lost, taxa=fech?o.won/fech:null;
+        return `<div class="bar"><span class="lbl">${esc(k)}</span>
+          <span class="num">${o.n}${taxa!=null?` <span class="dim">· ${PCT(taxa)}</span>`:""}</span>
+          <span class="track"><span class="fill ${taxa!=null&&taxa>=0.5?"fill-a":""}" style="width:${o.n/max*100}%"></span></span></div>`;
+      }).join("")
+    : `<div class="empty">Nenhuma objeção no período</div>`;
+}
+
+/* ---------- churn ---------- */
+function renderChurn(rows){
+  const a=agg(rows), cs=rows.filter(d=>d.churn);
+  const cd=cs.filter(d=>d.dc&&d.dDesfecho);
+  const tm=cd.length?cd.reduce((x,d)=>x+(new Date(d.dc)-new Date(d.dDesfecho))/86400000,0)/cd.length:null;
+  el("churn-stats").innerHTML=[
+    ["Cancelados",a.churn,a.churn?"var(--rosa)":"",tm!=null?`${Math.round(tm)} dias até cancelar`:"sem data"],
+    ["Em risco",rows.filter(d=>d.saude==="Risco").length,"var(--ambar)","Saúde do Aluno = Risco"],
+    ["Revertidos",rows.filter(d=>d.saude==="Revertido").length,"var(--oliva)","voltaram da baixa"],
+    ["Reembolsado",a.reemb?BRL(a.reemb):"—",a.reemb?"var(--rosa)":"",a.receita?PCT(a.reemb/a.receita)+" da receita":"—"],
+    ["Churn rate",a.won?PCT(a.churn/a.won):"—","","sobre os ganhos"],
+  ].map(([k,v,c,s])=>`<div class="stat"><span class="k">${k}</span>
+    <span class="v" style="color:${v&&v!=="—"&&v!==0?c||"inherit":"inherit"}">${v}</span>
+    <span class="s">${s}</span></div>`).join("");
+  const mot={}; cs.forEach(d=>(d.cm?.length?d.cm:["Não informado"]).forEach(x=>mot[x]=(mot[x]||0)+1));
+  const ks=Object.keys(mot).sort((x,y)=>mot[y]-mot[x]), max=Math.max(1,...ks.map(k=>mot[k]));
+  el("churn-motivos").innerHTML=ks.length
+    ? `<h3>Motivos de churn</h3>`+ks.map(k=>`<div class="bar"><span class="lbl">${esc(k)}</span>
+        <span class="num">${mot[k]}</span><span class="track">
+        <span class="fill" style="width:${mot[k]/max*100}%"></span></span></div>`).join("")
+    : `<div class="empty">Nenhum cancelamento no período</div>`;
+  const prods=[...new Set(rows.filter(d=>d.s==="won").map(d=>d.p))].sort((x,y)=>x.localeCompare(y,"pt-BR"));
+  const body=prods.map(p=>{
+    const v=rows.filter(d=>d.p===p&&d.s==="won"), c=v.filter(d=>d.churn);
+    const rb=c.reduce((x,d)=>x+(d.reemb||0),0);
+    return `<tr><td style="white-space:normal">${esc(p)}</td><td class="n">${v.length}</td>
+      <td class="n" style="color:${c.length?"var(--rosa)":"inherit"}">${c.length}</td>
+      <td class="n">${v.length?PCT(c.length/v.length):"—"}</td>
+      <td class="n">${rb?BRL(rb):'<span class="dim">—</span>'}</td></tr>`;
+  }).join("");
+  el("t-churn-prod").innerHTML=`<thead><tr><th>Churn por produto</th><th class="n">Vendidos</th>
+    <th class="n">Cancel.</th><th class="n">%</th><th class="n">R$ reemb.</th></tr></thead>
+    <tbody>${body||'<tr><td colspan="5" class="empty">Nenhuma venda no período</td></tr>'}</tbody>`;
+
+  // quem cancelou, negócio a negócio
+  const br=x=>x?x.split("-").reverse().join("/"):"—";
+  const linhas=[...cs].sort((a,b)=>String(b.dc).localeCompare(String(a.dc))).map(d=>`<tr>
+      <td class="name">${esc(d.t)} ${linkDeal(d)}</td>
+      <td><span class="who">${AV(d.v,22)}${esc(d.v)}</span></td>
+      <td style="white-space:normal;min-width:170px" class="dim">${esc(d.p)}</td>
+      <td class="dim" style="white-space:normal">${d.cm?.length?d.cm.map(esc).join(", "):"—"}</td>
+      <td class="n">${BRL(d.val)}</td>
+      <td class="n" style="color:${d.reemb?"var(--rosa)":"inherit"}">${d.reemb?BRL(d.reemb):"—"}</td>
+      <td class="n">${br(d.dGanho)}</td><td class="n">${br(d.dc)}</td>
+      <td class="n">${d.dGanho&&d.dc?Math.round((new Date(d.dc)-new Date(d.dGanho))/86400000)+"d":"—"}</td></tr>`).join("");
+  el("t-churn-lista").innerHTML=`<thead><tr><th>Cliente / negócio</th><th>Closer</th><th>Produto</th>
+    <th>Motivo</th><th class="n">Valor</th><th class="n">Reembolso</th><th class="n">Ganho em</th>
+    <th class="n">Cancelado</th><th class="n">Durou</th></tr></thead>
+    <tbody>${linhas||'<tr><td colspan="9" class="empty">Nenhum cancelamento no período</td></tr>'}</tbody>`;
+}
+
+/* ---------- ranking, produtos, negócios ---------- */
+function renderRank(rows){
+  const vs=[...new Set(rows.map(d=>d.v))].map(v=>({v,a:agg(rows.filter(d=>d.v===v))}))
+    .sort((x,y)=>y.a.receita-x.a.receita);
+  const max=Math.max(1,...vs.map(x=>x.a.receita));
+  el("rank").innerHTML=vs.length?vs.map((x,i)=>`<div class="rk">
+    <span class="pos">${i+1}º</span>${AV(x.v,34)}
+    <span><span class="nm">${esc(x.v)}</span>
+      <span class="sb"> · ${x.a.won} ganhos · conv. net ${PCT(x.a.net)}${x.a.churn?` · ${x.a.churn} churn`:""}</span></span>
+    <span class="vl">${x.a.receita?BRL(x.a.receita):"—"}</span>
+    <span class="bar"><span class="fl" style="width:${x.a.receita/max*100}%"></span></span>
+  </div>`).join(""):'<div class="empty">Nenhum negócio no período</div>';
+}
+function tempBadge(t){
+  if(!t) return '<span class="dim">—</span>';
+  return `<i class="dot ${t==="Quente"?"d-q":t==="Morno"?"d-m":"d-f"}"></i>${t}`;
+}
+/* Busca e filtro de análise valem só para esta tabela — os filtros do topo continuam
+   mandando em todo o resto da página. */
+function filtraDeals(rows){
+  const q = state.busca.trim().toLowerCase();
+  const campos = d => [d.t,d.v,d.p,d.et,d.canal,d.lead,d.sdr,d.orig,String(d.id)]
+    .filter(Boolean).join(" ").toLowerCase();
+  return rows.filter(d=>{
+    if(q && !campos(d).includes(q)) return false;
+    const n = d.an?.nota;
+    if(state.an==="com" && !d.an) return false;
+    if(state.an==="sem" && d.an)  return false;
+    if(state.an==="8"   && !(n>=8))        return false;
+    if(state.an==="65"  && !(n>=6.5&&n<8)) return false;
+    if(state.an==="5"   && !(n!=null&&n<6.5)) return false;
+    return true;
+  });
+}
+function renderDeals(todas){
+  const rows = filtraDeals(todas);
+  const body=rows.map(d=>{
+    const lista=d.precoLista||0, dsc=lista?1-d.val/lista:null;
+    return `<tr><td><button class="exp" type="button" data-exp="${d.id}" aria-label="Detalhar">${abertosNo.has("F"+d.id)?"−":"+"}</button></td>
+      <td class="name">${esc(d.t)} ${linkDeal(d)}</td>
+      <td class="n">${d.an?`<span class="nota n-${faixa(d.an.nota)}">${NUM(d.an.nota)}</span>`:'<span class="dim">—</span>'}</td>
+      <td><span class="who">${AV(d.v,22)}${esc(d.v)}</span></td>
+      <td style="white-space:normal;min-width:160px" class="dim">${esc(d.p)}</td>
+      <td>${badgeStatus(d)}</td><td class="n">${BRL(d.val)}</td>
+      <td class="n"><span class="${dsc>=0.2?"desc-hi":""}">${dsc!=null?PCT(dsc):"—"}</span></td>
+      <td style="white-space:nowrap">${tempBadge(d.tmp)}</td>
+      <td class="dim" style="white-space:nowrap">${esc(d.et)}</td>
+      <td class="dim" style="white-space:nowrap">${esc(d.canal)||"—"}</td>
+      <td>${(d.obj||[]).map(o=>`<span class="objchip"
+        style="${o.origem==="perda"?"background:color-mix(in srgb,var(--ambar) 16%,transparent);color:var(--ambar)":""}">${esc(o.nome)}</span>`).join("")||'<span class="dim">—</span>'}</td></tr>`
+      +(abertosNo.has("F"+d.id)?`<tr class="detail"><td colspan="12">${detalhe(d)}</td></tr>`:"");
+  }).join("");
+  el("t-deals").innerHTML=`<thead><tr><th style="width:34px"></th><th>Negócio</th>
+    <th class="n">Nota</th><th>Vendedor</th>
+    <th>Produto</th><th>Status</th><th class="n">Valor</th><th class="n">Desc.</th><th>Temp.</th>
+    <th>Etapa</th><th>Canal</th><th>Objeções</th></tr></thead>
+    <tbody>${body||'<tr><td colspan="12" class="empty">Nenhum negócio com esses filtros</td></tr>'}</tbody>`;
+  const recorte = rows.length!==todas.length ? ` de ${todas.length}` : "";
+  el("dealhint").textContent=rows.length+recorte+(rows.length===1?" negócio":" negócios")+
+    (state.kpi?" · recorte do cartão":"")+" · clique no + para abrir tudo";
+  // só reescreve o campo quando alguém mudou por fora (o botão limpar), senão o
+  // cursor pula para o fim a cada tecla digitada.
+  if(el("deal-busca").value !== state.busca) el("deal-busca").value = state.busca;
+  if(el("deal-an").value    !== state.an)    el("deal-an").value    = state.an;
+  el("t-deals").querySelectorAll("[data-exp]").forEach(b=>b.addEventListener("click",()=>{
+    const k="F"+b.dataset.exp; abertosNo.has(k)?abertosNo.delete(k):abertosNo.add(k); render(); }));
+}
+
+/* ---------- resumo IA ---------- */
+function renderAI(rows, destino="ai-body"){
+  const a=agg(rows), ans=rows.filter(d=>d.an);
+  const objm={}; rows.forEach(d=>(d.obj||[]).forEach(o=>objm[o.nome]=(objm[o.nome]||0)+1));
+  const topObj=Object.entries(objm).sort((x,y)=>y[1]-x[1]).slice(0,5);
+  const perdas={}; rows.filter(d=>d.lm).forEach(d=>perdas[d.lm]=(perdas[d.lm]||0)+1);
+  const topPerdas=Object.entries(perdas).sort((x,y)=>y[1]-x[1]).slice(0,8);
+  const descAlto=rows.filter(d=>d.s==="won"&&d.precoLista&&1-d.val/d.precoLista>=0.15);
+  const cabeca = ans.length ? (()=>{
+    const media=ans.reduce((x,d)=>x+d.an.nota,0)/ans.length;
+    const cf=ans.filter(d=>d.an.cp!=null);
+    const fala=cf.length?cf.reduce((x,d)=>x+d.an.cp,0)/cf.length:null;
+    const mon=cf.filter(d=>d.an.cp>=75).length;
+    const dur=ans.filter(d=>d.an.dur);
+    const fx={forte:0,boa:0,mediana:0,grave:0};
+    ans.forEach(d=>fx[faixa(d.an.nota)]++);
+    return `<h4>Panorama</h4><ul>
+      <li><b>${ans.length} call(s)</b> analisadas, nota média <b>${NUM(media)}/10</b>
+        — ${fx.forte} forte, ${fx.boa} boa, ${fx.mediana} mediana, ${fx.grave} grave.</li>
+      ${fala!=null?`<li>Closer fala <b>${fala.toFixed(0)}%</b> do tempo. ${mon?`<b>${mon}</b> passaram de 75% — monólogo.`:"Nenhuma virou monólogo."}</li>`:""}
+      ${dur.length?`<li>Duração média <b>${Math.round(dur.reduce((x,d)=>x+d.an.dur,0)/dur.length)} min</b>.</li>`:""}
+      ${descAlto.length?`<li><b>${descAlto.length} venda(s)</b> com desconto acima de 15% sobre o preço de tabela.</li>`:""}
+    </ul>`;
+  })() : `<h4>Panorama</h4><ul><li class="dim">Nenhuma análise de call no período —
+      a fonte de Score, Nota e objeções da call ainda não existe.</li>
+      ${descAlto.length?`<li><b>${descAlto.length} venda(s)</b> com desconto acima de 15% sobre o preço de tabela.</li>`:""}</ul>`;
+  // erros que se repetem entre calls diferentes — agrupados pelo começo da frase
+  const errm={};
+  ans.forEach(d=>(d.an.erro||[]).forEach(e=>{
+    const k=e.split(/[:.]/)[0].trim().slice(0,60);
+    if(k.length<6) return;
+    errm[k]=errm[k]||{n:0,ex:e};
+    errm[k].n++; }));
+  const topErr=Object.entries(errm).filter(([,v])=>v.n>1)
+    .sort((x,y)=>y[1].n-x[1].n).slice(0,6);
+  const blocoErr = topErr.length ? `<h4>O que mais deu errado nas calls</h4>
+    <ul>${topErr.map(([k,v])=>`<li>${esc(k)} — <b>${v.n}</b> call(s)</li>`).join("")}</ul>` : "";
+
+  el(destino).innerHTML=cabeca+blocoErr+`
+    <h4>Objeções e motivos de perda</h4>
+    <ul>${topObj.map(([k,v])=>`<li>${esc(k)} — <b>${v}</b></li>`).join("")||"<li>Nenhum registrado.</li>"}</ul>
+    <h4>Motivos de perda (Pipedrive)</h4>
+    <ul>${topPerdas.map(([k,v])=>`<li>${esc(k)} — <b>${v}</b></li>`).join("")||"<li>Nenhuma perda no período.</li>"}</ul>
+    <h4>Churn</h4>
+    <ul><li>${a.churn?`${a.churn} cancelamento(s), ${BRL(a.reemb)} reembolsado — ${PCT(a.churn/Math.max(1,a.won))} dos ganhos.`:"Nenhum cancelamento no período."}</li></ul>`;
+}
+
+/* ==========================================================
+   PÁGINA RETORNO
+   ========================================================== */
+let PREENCH = null;
+const hojeISO = (() => { const h=new Date(), p=n=>String(n).padStart(2,"0");
+  return `${h.getFullYear()}-${p(h.getMonth()+1)}-${p(h.getDate())}`; })();
+const maisDias = (iso,n) => new Date(Date.parse(iso+"T12:00:00Z")+n*86400e3).toISOString().slice(0,10);
+const difDias  = (a,b) => (a&&b) ? Math.round((Date.parse(b+"T12:00:00Z")-Date.parse(a+"T12:00:00Z"))/86400e3) : null;
+const brData   = x => x ? x.split("-").reverse().join("/") : "—";
+
+/* Em que pé está o retorno deste negócio.
+   A ordem importa: reagendado ganha de no-show, e no-show ganha de vencido —
+   senão o closer que correu atrás aparece como se não tivesse feito nada. */
+// Só 7% preenchem "Data Retorno Realizado" e 2% "Data NoShow" — mas a etapa do
+// funil é movida. Então a etapa vale como registro quando a data falta.
+const foiRealizado = d => d.retRealizado || d.et==="Retorno Realizado";
+const foiNoShow    = d => d.noShow || d.et==="No Show";
+function estadoRet(d){
+  if(d.s!=="open") return null;
+  const ag=d.retAgendado;
+  const rz=d.retRealizado || (d.et==="Retorno Realizado" ? (d.retAgendado||hojeISO) : null);
+  const ns=d.noShow      || (d.et==="No Show"           ? (d.retAgendado||hojeISO) : null);
+  if(ns && ag && ag>ns)                    return "reagendado";
+  if(ns && (!ag || ag<=ns))                return "noshow";
+  if(rz && (!ag || rz>=ag))                return "realizado";
+  if(!ag)                                  return "semdata";
+  if(ag>hojeISO)                           return "futuro";
+  if(ag===hojeISO)                         return "hoje";
+  return "vencido";
+}
+const ROTULO_EST = {
+  vencido:"Vencido", hoje:"Hoje", futuro:"Agendado", noshow:"Lead não apareceu",
+  reagendado:"Reagendado", realizado:"Realizado", semdata:"Sem data",
+};
+const bolhaEst = e => e ? `<span class="bolha b-${e}">${ROTULO_EST[e]}</span>` : '<span class="dim">—</span>';
+
+/* A carteira de retorno: aberto e em etapa de retorno. Não depende do período
+   nem do filtro "Etapas do RET" do topo — Follow UP é justamente o caso mais
+   grave (ninguém marcou nada) e não pode ficar de fora da tela. */
+const ETAPAS_RET_FIXAS = ["Retorno Agendado", "Retorno Realizado", "Follow UP"];
+function carteiraRet(){
+  return carteira().filter(d => ETAPAS_RET_FIXAS.includes(d.et) || d.et==="No Show"
+    || d.retAgendado || d.retRealizado || d.noShow);
+}
+
+/* ---------- aba HOJE ---------- */
+function renderAcao(rows){
+  const por = e => rows.filter(d => estadoRet(d)===e);
+  const soma = a => a.reduce((x,d)=>x+d.val,0);
+  const amanha = rows.filter(d => d.retAgendado===maisDias(hojeISO,1));
+  const cartoes = [
+    ["Vencidos", por("vencido"), "var(--rosa)", "passou da data e ninguém registrou"],
+    ["Hoje", por("hoje"), "var(--ambar)", "acontece hoje"],
+    ["Amanhã", amanha, "var(--peri)", "prepare-se"],
+    ["Lead não apareceu", por("noshow"), "var(--ambar)", "no-show sem reagendar"],
+    ["Sem data", por("semdata"), "var(--faint)", "ninguém marcou nada"],
+  ];
+  el("ret-acao").innerHTML = cartoes.map(([k,arr,cor,sub])=>`
+    <div class="stat"><span class="k">${k}</span>
+      <span class="v" style="color:${arr.length?cor:"inherit"}">${arr.length}</span>
+      <span class="s">${arr.length?BRL(soma(arr)):sub}</span></div>`).join("");
+}
+
+function renderLastro(){
+  // Reunião realizada saiu com retorno marcado? É a pergunta do gestor de manhã.
+  // O lastro é o período escolhido no topo. Sem régua própria: se o gestor filtrou
+  // 20/08, é 20/08 que ele quer ver aqui — não "hoje".
+  const rotJanela = state.de===state.ate ? brData(state.de)
+                                         : `${brData(state.de)} a ${brData(state.ate)}`;
+  const reunioes = D.filter(filtrosComuns)
+    .filter(d => d.diaReuniao && d.diaReuniao>=state.de && d.diaReuniao<=state.ate);
+  const comRet = reunioes.filter(d => d.retAgendado || d.retRealizado);
+  const noShow = reunioes.filter(d => !d.retAgendado && !d.retRealizado && d.noShow);
+  const sem    = reunioes.filter(d => !d.retAgendado && !d.retRealizado && !d.noShow);
+  el("lastro-sub").textContent = reunioes.length
+    ? `${rotJanela} · ${reunioes.length} reuniões · ${comRet.length} saíram com retorno`
+      + ` · ${sem.length} sem nada`
+    : `${rotJanela} · nenhuma reunião registrada`;
+
+  const vendedores = [...new Set(reunioes.map(d=>d.v))]
+    .sort((a,b)=>reunioes.filter(d=>d.v===b).length - reunioes.filter(d=>d.v===a).length);
+  el("lastro-cards").innerHTML = vendedores.length ? vendedores.map(v=>{
+    const r = reunioes.filter(d=>d.v===v);
+    const ok = r.filter(d=>d.retAgendado||d.retRealizado).length;
+    const ns = r.filter(d=>!d.retAgendado&&!d.retRealizado&&d.noShow).length;
+    const nada = r.length-ok-ns;
+    return `<div class="lastro">
+      <h4>${AV(v,22)}${esc(v)}
+        <span style="margin-left:auto;font-family:var(--mono);font-size:12px;
+          color:${nada?"var(--rosa)":"var(--oliva)"}">${ok}/${r.length}</span></h4>
+      <div class="res">${ok} com retorno${ns?` · ${ns} no-show`:""}${nada?` · <b style="color:var(--rosa)">${nada} sem nada</b>`:""}</div>
+      <ul>${r.map(d=>{
+        const e = d.retAgendado||d.retRealizado ? "ok" : d.noShow ? "ns" : "no";
+        const ic = e==="ok"?'<span style="color:var(--oliva)">✓</span>'
+                 : e==="ns"?'<span style="color:var(--ambar)">◑</span>'
+                 : '<span style="color:var(--rosa)">✕</span>';
+        return `<li>${ic}<span style="flex:1">${esc(d.t)} ${linkDeal(d)}</span>
+          <span class="mini">${d.retAgendado ? "ret. "+brData(d.retAgendado)
+            : e==="ns" ? "no-show" : "sem retorno"}</span></li>`;
+      }).join("")}</ul></div>`;
+  }).join("") : '<div class="vazio" style="grid-column:1/-1">Nenhuma reunião com "Dia da Reunião" preenchido neste recorte</div>';
+}
+
+const PESO_EST = {vencido:0, semdata:1, noshow:2, hoje:3, reagendado:4, futuro:5, realizado:6};
+function linhaRet(d){
+  const e = estadoRet(d);
+  const atraso = e==="vencido" ? difDias(d.retAgendado, hojeISO) : null;
+  return `<tr><td class="name">${esc(d.t)} ${linkDeal(d)}</td>
+    <td><span class="who">${AV(d.v,22)}${esc(d.v)}</span></td>
+    <td class="dim" style="min-width:150px">${esc(d.p)}</td>
+    <td>${bolhaEst(e)}</td>
+    <td class="n">${d.retAgendado?brData(d.retAgendado):'<span class="dim">—</span>'}</td>
+    <td class="n" style="color:${atraso>2?"var(--rosa)":"inherit"}">${atraso!=null?atraso+"d":'<span class="dim">—</span>'}</td>
+    <td class="n" style="color:${d.dpar>=15?"var(--rosa)":d.dpar>=8?"var(--ambar)":"inherit"}">${
+      d.dpar!=null?d.dpar+"d":'<span class="dim">—</span>'}</td>
+    <td>${tempBadge(d.tmp)}</td>
+    <td class="n">${chipLead(d.lead)}</td>
+    <td class="dim" style="white-space:nowrap">${esc(d.canal)||"—"}</td>
+    <td class="n">${d.nret!=null?d.nret:'<span class="dim">—</span>'}</td>
+    <td class="n">${BRL(d.val)}</td></tr>`;
+}
+const CAB_RET = `<thead><tr><th>Negócio</th><th>Closer</th><th>Produto</th><th>Estado</th>
+  <th class="n">Agendado</th><th class="n">Atraso</th><th class="n">Parado</th>
+  <th>Temp.</th><th class="n">Qualif.</th>
+  <th>Canal</th><th class="n">Toques</th><th class="n">Valor</th></tr></thead>`;
+
+/* O funil do retorno, aninhado: cada etapa é um subconjunto da anterior. Sem isso
+   as porcentagens passam de 100% e o funil vira enfeite. */
+function funilRet(rows){
+  const reunioes  = rows.filter(d => d.diaReuniao && d.diaReuniao>=state.de && d.diaReuniao<=state.ate);
+  const agendados = reunioes.filter(d => d.retAgendado || foiRealizado(d) || foiNoShow(d));
+  const realizados= agendados.filter(foiRealizado);
+  const ganhos    = realizados.filter(d => d.s==="won");
+  return {reunioes, agendados, realizados, ganhos};
+}
+
+/* O que o Pipedrive devolveu de fato sobre plataforma de reunião. Se o Meet não
+   aparece, isto diz por quê — melhor mostrar o dado cru do que deixar a pessoa
+   achando que o painel perdeu a informação. */
+function diagPlataforma(){
+  if(!PLATAF) return "";
+  const par = obj => Object.entries(obj||{}).sort((a,b)=>b[1]-a[1])
+    .map(([k,n])=>`<b>${esc(k)}</b> ${n}`).join(" · ");
+  const cli = par(PLATAF.clientes_de_video);
+  const dom = par(PLATAF.dominios_dos_links);
+  const partes = [`${PLATAF.atividades_no_periodo||0} atividade(s) ligadas a estes negócios`];
+  if(cli) partes.push(`plataforma de vídeo no campo do Pipedrive: ${cli}`);
+  else    partes.push(`<b>nenhuma</b> atividade traz plataforma de vídeo preenchida`);
+  if(dom) partes.push(`domínio dos links: ${dom}`);
+  const temMeet = /meet/i.test(cli+dom);
+  return ` ${partes.join(" · ")}.` + (temMeet ? "" :
+    ` <span style="color:var(--ambar)">Sem Google Meet: ele só é gravado quando a
+      reunião é criada pela integração de vídeo do Pipedrive.</span>`);
+}
+
+/* ==========================================================
+   RETORNOS POR DIA
+   ==========================================================
+   Junta o que eram dois blocos: a "agenda dos próximos dias" e o "forecast por
+   dia". Era o mesmo dado — retorno com data marcada — desenhado duas vezes, uma
+   olhando para a frente e outra para o período. Aqui é um gráfico só, do começo
+   do período até duas semanas à frente, com a linha de hoje no meio. */
+function renderDias(cr){
+  const limite = maisDias(hojeISO, 14);
+  const fim = state.ate > limite ? state.ate : limite;
+  const ini = state.de < hojeISO ? state.de : hojeISO;
+  const ag = cr.filter(d => d.retAgendado && d.retAgendado>=ini && d.retAgendado<=fim);
+
+  if(!ag.length){
+    el("ret-dias").innerHTML='<div class="empty">Nenhum retorno agendado nesta janela</div>';
+    el("t-dias-closer").innerHTML=""; el("dias-sub").textContent="";
+    return;
+  }
+  const dias=[...new Set(ag.map(d=>d.retAgendado))].sort();
+  const temps=[["Quente","var(--rosa)"],["Morno","var(--ambar)"],["Frio","var(--peri)"],[null,"var(--card-2)"]];
+  const porDia=dias.map(dt=>{
+    const arr=ag.filter(d=>d.retAgendado===dt);
+    return {dt, n:arr.length, total:arr.reduce((a,d)=>a+d.val,0),
+      partes:temps.map(([t,c])=>({c, v:arr.filter(d=>(d.tmp||null)===t).reduce((a,d)=>a+d.val,0)}))};
+  });
+  const teto=Math.max(...porDia.map(x=>x.total))||1;
+
+  // viewBox largo + altura travada em pixel: com width:100% e altura automática
+  // o desenho escala com a tela e vira um monstro em monitor grande.
+  const W=1100, H=210, PB=34, PT=24, PL=10, PR=10;
+  const passo=(W-PL-PR)/dias.length, larg=Math.min(34, Math.max(6, passo-8));
+  const x=i=>PL+i*passo+(passo-larg)/2;
+  const alt=v=>(v/teto)*(H-PT-PB);
+  const base=H-PB;
+  const mostraRot = dias.length<=24;
+
+  const barras=porDia.map((d,i)=>{
+    let y=base;
+    const segs=d.partes.filter(p=>p.v>0).map(p=>{ const a=alt(p.v); y-=a;
+      return `<rect x="${x(i).toFixed(1)}" y="${y.toFixed(1)}" width="${larg.toFixed(1)}"
+        height="${a.toFixed(1)}" fill="${p.c}" rx="3"/>`; }).join("");
+    const hoje = d.dt===hojeISO;
+    return segs
+      + `<text x="${(x(i)+larg/2).toFixed(1)}" y="${(y-5).toFixed(1)}" text-anchor="middle"
+          font-size="10" font-weight="700" fill="var(--fg)" font-family="var(--mono)">${d.n}</text>`
+      + (mostraRot?`<text x="${(x(i)+larg/2).toFixed(1)}" y="${H-18}" text-anchor="middle" font-size="9"
+          fill="${hoje?"var(--lima)":"var(--faint)"}" font-weight="${hoje?"700":"400"}"
+          font-family="var(--mono)">${d.dt.slice(8,10)}/${d.dt.slice(5,7)}</text>`:"");
+  }).join("");
+
+  // a linha de hoje separa o que já era do que ainda vem
+  const iHoje = dias.findIndex(dt=>dt>=hojeISO);
+  const marcaHoje = iHoje>=0 ? `<line x1="${(x(iHoje)-4).toFixed(1)}" y1="${PT-6}"
+    x2="${(x(iHoje)-4).toFixed(1)}" y2="${base}" stroke="var(--lima)" stroke-width="1"
+    stroke-dasharray="3 3" opacity=".7"/>` : "";
+
+  const passado = ag.filter(d=>d.retAgendado<hojeISO);
+  const futuro  = ag.filter(d=>d.retAgendado>=hojeISO);
+  const total = ag.reduce((a,d)=>a+d.val,0);
+  el("dias-sub").textContent =
+    `de ${brData(ini)} a ${brData(fim)} · ${passado.length} atrás, ${futuro.length} pela frente`;
+
+  el("ret-dias").innerHTML=`
+    <div class="legend" style="margin-bottom:10px;gap:16px;flex-wrap:wrap">
+      ${temps.map(([t,c])=>{
+        const arr=ag.filter(d=>(d.tmp||null)===t);
+        return `<span><i style="width:9px;height:9px;border-radius:3px;background:${c};
+          display:inline-block;margin-right:6px"></i>${t||"Sem temperatura"}
+          <b style="font-family:var(--mono)">${arr.length}</b></span>`;
+      }).join("")}
+      <span style="margin-left:auto;font-family:var(--mono)">${ag.length} retornos · ${BRL(total)}</span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"
+      style="width:100%;height:210px;display:block" role="img"
+      aria-label="Retornos agendados por dia">${marcaHoje}${barras}
+      <line x1="${PL}" y1="${base}" x2="${W-PR}" y2="${base}" stroke="var(--line)" stroke-width="1"/>
+    </svg>`;
+
+  // de quem é esse forecast
+  const donos=[...new Set(ag.map(d=>d.v||"Sem vendedor"))].map(v=>{
+    const arr=ag.filter(d=>(d.v||"Sem vendedor")===v);
+    const cel=t=>{ const a=arr.filter(d=>(d.tmp||null)===t);
+      return {n:a.length, v:a.reduce((x,d)=>x+d.val,0)}; };
+    return {v, n:arr.length, val:arr.reduce((a,d)=>a+d.val,0),
+      atras:arr.filter(d=>d.retAgendado<hojeISO).length,
+      q:cel("Quente"), m:cel("Morno"), f:cel("Frio")};
+  }).sort((a,b)=>b.val-a.val || b.n-a.n);
+  const cx=(x,cor)=>x.n?`<b style="color:${cor}">${x.n}</b> <span class="dim">${BRL(x.v)}</span>`:'<span class="dim">—</span>';
+  el("t-dias-closer").innerHTML=`
+    <thead><tr><th>Closer</th><th class="n">Quente</th><th class="n">Morno</th><th class="n">Frio</th>
+      <th class="n">Atrasados</th><th class="n">Retornos</th><th class="n">Valor</th></tr></thead>
+    <tbody>${donos.map(r=>`<tr>
+      <td class="name"><span class="who">${AV(r.v,22)}${esc(r.v)}</span></td>
+      <td class="n">${cx(r.q,"var(--rosa)")}</td>
+      <td class="n">${cx(r.m,"var(--ambar)")}</td>
+      <td class="n">${cx(r.f,"var(--peri)")}</td>
+      <td class="n" style="color:${r.atras?"var(--rosa)":"inherit"}">${r.atras||'<span class="dim">—</span>'}</td>
+      <td class="n">${r.n}</td>
+      <td class="n" style="color:var(--lima)">${BRL(r.val)}</td></tr>`).join("")}
+      <tr class="total"><td>Total</td>
+        <td class="n">${ag.filter(d=>d.tmp==="Quente").length}</td>
+        <td class="n">${ag.filter(d=>d.tmp==="Morno").length}</td>
+        <td class="n">${ag.filter(d=>d.tmp==="Frio").length}</td>
+        <td class="n">${passado.length}</td>
+        <td class="n">${ag.length}</td><td class="n">${BRL(total)}</td></tr></tbody>`;
+}
+
+/* ==========================================================
+   LISTA ÚNICA DE NEGÓCIOS EM RETORNO
+   ==========================================================
+   Antes eram três tabelas com o mesmo conteúdo e filtros diferentes: fila de
+   trabalho, carteira inteira e a lista do forecast. Agora é uma só, e os estados
+   viraram botões — que é o que a aba "Carteira" fazia com cinco cartões. */
+const ORDEM_EST = ["vencido","semdata","noshow","hoje","futuro","reagendado"];
+function renderListaRet(cr){
+  const porEstado = {};
+  cr.forEach(d=>{ const e=estadoRet(d); if(e) (porEstado[e]=porEstado[e]||[]).push(d); });
+
+  const chips = [["", "Todos", cr.length, cr.reduce((a,d)=>a+d.val,0)]]
+    .concat(ORDEM_EST.filter(e=>porEstado[e]?.length)
+      .map(e=>[e, ROTULO_EST[e], porEstado[e].length,
+               porEstado[e].reduce((a,d)=>a+d.val,0)]));
+  el("ret-chips").innerHTML = chips.map(([k,rot,n,val])=>`
+    <button class="chip${state.est===k?" on":""}" data-est="${k}" type="button">
+      ${rot} <b>${n}</b> <span class="dim">${BRL(val)}</span></button>`).join("");
+
+  const lista = (state.est ? (porEstado[state.est]||[]) : cr)
+    .slice().sort((a,b)=> PESO_EST[estadoRet(a)]-PESO_EST[estadoRet(b)]
+      || (a.retAgendado||"9999").localeCompare(b.retAgendado||"9999")
+      || b.val-a.val);
+
+  el("ret-lista-sub").textContent =
+    `${lista.length} de ${cr.length} negócios · ${BRL(lista.reduce((a,d)=>a+d.val,0))} · carteira de hoje`;
+  el("t-ret-lista").innerHTML = CAB_RET + `<tbody>${lista.map(linhaRet).join("")
+    || '<tr><td colspan="12" class="empty">Nada neste recorte</td></tr>'}</tbody>`;
+
+  el("ret-chips").querySelectorAll("[data-est]").forEach(b=>b.addEventListener("click",()=>{
+    state.est = state.est===b.dataset.est ? "" : b.dataset.est; render();
+  }));
+}
+
+/* ==========================================================
+   DESEMPENHO
+   ==========================================================
+   Um funil e UMA tabela com seletor de corte. Eram três tabelas — closer, canal
+   e plataforma — com as mesmas colunas. A plataforma continua aqui: é onde o
+   Google Meet aparece, separado do Meetime. */
+/* Os três cortes que substituíram as três tabelas que existiam: por closer, por
+   canal e por plataforma. Nada além disso — cada corte novo aqui precisa ser
+   pedido, não inventado. */
+const CORTES = {
+  v:          ["Closer",        d => d.v || "Sem vendedor"],
+  canal:      ["Canal",         d => d.canal || "Sem canal"],
+  plataforma: ["Onde aconteceu",d => d.plataforma || "Não identificada"],
+};
+function renderDesempenho(rows){
+  const f = funilRet(rows);
+  const taxa = (a,b) => b ? PCT(a/b) : "—";
+  el("des-funil").innerHTML = [
+    ["Reuniões", f.reunioes.length, "com Dia da Reunião no período"],
+    ["Retornos agendados", f.agendados.length, `${taxa(f.agendados.length,f.reunioes.length)} das reuniões`],
+    ["Retornos realizados", f.realizados.length,
+      `${taxa(f.realizados.length,f.agendados.length)} dos agendados · data ou etapa`],
+    ["Viraram venda", f.ganhos.length, `${taxa(f.ganhos.length,f.realizados.length)} dos realizados`],
+    ["Retornos por venda", f.ganhos.length?NUM(f.realizados.length/f.ganhos.length):"—", "quanto custa fechar"],
+  ].map(([k,v,s])=>`<div class="stat"><span class="k">${k}</span>
+      <span class="v">${v}</span><span class="s">${s}</span></div>`).join("");
+
+  for(const k of Object.keys(CORTES)) renderCorte(rows, k);
+
+}
+
+/* As três visões ficam uma embaixo da outra, na mesma tela. Botão para trocar
+   escondia duas delas — e quem abre a página não sabe que existem. */
+function renderCorte(rows, chave){
+  const [titulo, fn] = CORTES[chave] ?? CORTES.v;
+  const alvo = "t-corte-" + chave;
+  const taxa = (a,b) => b ? PCT(a/b) : '<span class="dim">—</span>';
+  const chaves = [...new Set(rows.map(fn))];
+  const linhas = chaves.map(k=>{
+    const r = rows.filter(d=>fn(d)===k), g = funilRet(r);
+    return {k, r, g, receita:g.ganhos.reduce((a,d)=>a+d.val,0)};
+  }).filter(x=>x.g.reunioes.length || x.g.agendados.length || x.g.ganhos.length)
+    .sort((a,b)=>b.g.agendados.length-a.g.agendados.length || b.receita-a.receita);
+
+  const T = funilRet(rows);
+  const comFoto = chave==="v";
+  el(alvo).innerHTML=`<thead><tr><th>${titulo}</th><th class="n">Reuniões</th>
+    <th class="n">Agendou</th><th class="n">%</th><th class="n">Realizou</th><th class="n">%</th>
+    <th class="n">Vendas</th><th class="n">Conv.</th><th class="n">Receita</th></tr></thead>
+    <tbody>${linhas.map(x=>`<tr>
+      <td class="name">${comFoto?`<span class="who">${AV(x.k,22)}${esc(x.k)}</span>`:esc(x.k)}</td>
+      <td class="n">${x.g.reunioes.length}</td>
+      <td class="n">${x.g.agendados.length}</td>
+      <td class="n">${taxa(x.g.agendados.length,x.g.reunioes.length)}</td>
+      <td class="n">${x.g.realizados.length}</td>
+      <td class="n">${taxa(x.g.realizados.length,x.g.agendados.length)}</td>
+      <td class="n" style="color:var(--oliva)">${x.g.ganhos.length}</td>
+      <td class="n">${taxa(x.g.ganhos.length,x.g.realizados.length)}</td>
+      <td class="n">${x.receita?BRL(x.receita):'<span class="dim">—</span>'}</td></tr>`).join("")
+      || `<tr><td colspan="9" class="empty">Sem dados no período${
+          chave==="plataforma"?diagPlataforma():""}</td></tr>`}
+    ${linhas.length?`<tr class="total"><td>Total</td>
+      <td class="n">${T.reunioes.length}</td><td class="n">${T.agendados.length}</td>
+      <td class="n">${taxa(T.agendados.length,T.reunioes.length)}</td>
+      <td class="n">${T.realizados.length}</td>
+      <td class="n">${taxa(T.realizados.length,T.agendados.length)}</td>
+      <td class="n">${T.ganhos.length}</td>
+      <td class="n">${taxa(T.ganhos.length,T.realizados.length)}</td>
+      <td class="n">${BRL(T.ganhos.reduce((a,d)=>a+d.val,0))}</td></tr>`:""}</tbody>`;
+
+  if(chave==="plataforma" && linhas.length)
+    el(alvo).innerHTML += `<tbody><tr><td colspan="9" class="mini"
+      style="padding:10px 16px">${diagPlataforma()}</td></tr></tbody>`;
+}
+
+/* ---------- páginas ainda por fazer ---------- */
+function emObra(id, titulo, itens, onde){
+  el(id).innerHTML = `<div class="card">
+    <div class="ch"><h2>${titulo}</h2><span class="tag" style="background:color-mix(in srgb,var(--ambar) 16%,transparent);color:var(--ambar)">Em construção</span></div>
+    <p class="dim" style="font-size:13px;margin:0 0 12px">Por enquanto isso está na <b>Visão geral</b>. ${onde}</p>
+    <div class="ai"><h4>O que vai ter aqui</h4><ul>${itens.map(x=>`<li>${x}</li>`).join("")}</ul></div>
+  </div>`;
+}
+
+
+/* ==========================================================
+   PÁGINA CHURN
+   ========================================================== */
+/* ==========================================================
+   PÁGINA CHURN
+   ==========================================================
+   Duas leituras do mesmo período, e elas não dão o mesmo número:
+   · "Cancelou no período" — quem pediu cancelamento nestas datas, tenha vendido
+     quando tiver vendido. É como o CS enxerga o mês.
+   · "Vendeu no período"   — das vendas destas datas, quantas caíram. É como o
+     comercial enxerga a própria safra.
+   A primeira usa o histórico de 12 meses; a segunda, os negócios do período. */
+let CHURN12 = [], RECEB12 = [], PLATAF = null;
+const META_CHURN = 0.05;   // meta da casa, medida sobre o RECEBIMENTO
+const DIAS_PRECOCE = 7;    // cancelou em até 7 dias do ganho = churn precoce
+
+/* As sete opções do campo "Motivo Churn" no Pipedrive, agrupadas por quem tem a mão
+   no problema. É esse agrupamento que responde "foi erro do comercial ou do CS?".
+   O campo é de múltipla escolha: um cancelamento pode citar mais de um motivo — por
+   isso as porcentagens somam mais de 100% e a tela diz isso. */
+const MOTIVOS_CHURN = [
+  ["Arrependimento (comprou no impulso)",        "Comercial"],
+  ["Desalinhamento no comercial",                "Comercial"],
+  ["Erro de Processo (CS)",                      "CS"],
+  ["Logística ou problema e/ou marketplace",     "Operação"],
+  ["Produto do cliente",                         "Cliente"],
+  ["Problemas pessoais do cliente",              "Cliente"],
+  ["Negativa contratual",                        "Contratual"],
+];
+const CULPA = new Map(MOTIVOS_CHURN);
+const AREAS = [
+  ["Comercial",  "var(--rosa)",  "venda no impulso ou promessa desalinhada"],
+  ["CS",         "var(--ambar)", "falha no processo de acompanhamento"],
+  ["Operação",   "var(--ciano)", "logística ou marketplace"],
+  ["Cliente",    "var(--peri)",  "motivo fora do nosso alcance"],
+  ["Contratual", "var(--oliva)", "negativa contratual"],
+];
+const areaDe = m => CULPA.get(m) ?? "Não informado";
+
+/* Recebimento: o que de fato entrou. Quando "Valor pago" está vazio, o valor do
+   negócio é a aproximação — e a tela avisa quantos entraram assim. */
+const recebidoDe = d => (d.valPago > 0 ? d.valPago : d.val) || 0;
+
+const ehPrecoce = d => { const x = difDias(d.dGanho, d.dc); return x != null && x <= DIAS_PRECOCE; };
+const mesDe = iso => iso ? iso.slice(0,7) : null;
+
+function renderPgChurn(rows){
+  const ganhos = rows.filter(d=>d.s==="won");
+  const receita = ganhos.reduce((a,d)=>a+d.val,0);
+
+  // quem cancelou dentro do período, venha de onde vier
+  const doHistorico = CHURN12.filter(d=>d.dc && d.dc>=state.de && d.dc<=state.ate);
+  // e quem cancelou entre os negócios do próprio período (pode não ter data)
+  const doPeriodo = rows.filter(d=>d.churn);
+
+  const cancelou = state.cba==="vendeu";
+  const cs = cancelou ? doPeriodo : (doHistorico.length ? doHistorico : doPeriodo);
+  const semData = cancelou ? 0 : doPeriodo.filter(d=>!d.dc).length;
+
+  el("ch-aba-nota").textContent = state.cba==="vendeu"
+    ? `safra do período: ${ganhos.length} ganhos, ${doPeriodo.length} cancelaram`
+    : `${cs.length} cancelamento(s) com data no período` +
+      (semData?` · ${semData} sem Data do Cancelamento ficaram de fora`:"");
+
+  const reemb = cs.reduce((a,d)=>a+(d.reemb||0),0);
+  const precoces = cs.filter(ehPrecoce);
+  // A meta é sobre o recebimento: reembolsado ÷ recebido. Não é contagem de alunos.
+  const recebido = ganhos.reduce((a,d)=>a+recebidoDe(d),0);
+  const semValorPago = ganhos.filter(d=>!(d.valPago>0)).length;
+  const taxa = recebido ? reemb/recebido : null;
+  const taxaQtd = ganhos.length ? cs.length/ganhos.length : null;
+
+  /* ---------- cartões ---------- */
+  const metaCor = taxa==null ? "" : taxa<=META_CHURN ? "var(--oliva)" : "var(--rosa)";
+  el("ch-cards").innerHTML = [
+    ["Cancelamentos", cs.length, cs.length?"var(--rosa)":"var(--oliva)",
+      cs.length?BRL(cs.reduce((a,d)=>a+d.val,0))+" em contratos":"nenhum no período"],
+    ["Reembolsado", reemb?BRL(reemb):"—", reemb?"var(--rosa)":"",
+      receita?PCT(reemb/receita)+" da receita":"—"],
+    ["Ticket médio reembolsado", cs.length&&reemb?BRL(reemb/cs.length):"—", "",
+      cs.length?`${cs.filter(d=>d.reemb>0).length} com reembolso`:"—"],
+    ["Churn precoce", precoces.length, precoces.length?"var(--rosa)":"var(--oliva)",
+      `cancelou em até ${DIAS_PRECOCE} dias`],
+    ["% precoce", cs.length?PCT(precoces.length/cs.length):"—", "",
+      "dos cancelamentos"],
+    ["Meta × realizado", taxa!=null?PCT(taxa):"—", metaCor,
+      taxa==null ? "sem recebimento no período"
+        : `${BRL(reemb)} de ${BRL(recebido)} · meta ${PCT(META_CHURN)}`],
+  ].map(([k,v,c,sub])=>`<div class="stat"><span class="k">${k}</span>
+      <span class="v" style="color:${c||"inherit"}">${v}</span><span class="s">${sub}</span></div>`).join("");
+
+  // O denominador honesto de churn é a base ativa de alunos, que não existe no
+  // Pipedrive. Aqui a régua é "vendas do período" — dá para comparar mês a mês,
+  // mas não é o mesmo que taxa sobre a base. Está escrito na tela para ninguém
+  // apresentar esse número como se fosse.
+  el("ch-cards").innerHTML += `<div class="mini" style="grid-column:1/-1;margin-top:2px">
+    ${state.cba==="vendeu"
+      ? "Safra: das vendas fechadas no período, quantas já cancelaram. O número só cresce com o tempo."
+      : "Operacional: quem pediu cancelamento no período, tenha vendido quando tiver vendido."}
+    A meta é sobre o <b>recebimento</b>: reembolsado ÷ recebido no período.
+    ${taxaQtd!=null?`Em contagem de alunos daria ${PCT(taxaQtd)}.`:""}
+    ${semValorPago?`<b>${semValorPago}</b> ganho(s) sem "Valor pago" preenchido entraram pelo valor do negócio.`:""}</div>`;
+
+  renderChurnQtd12();
+  renderChurnCulpa(cs);
+
+  /* ---------- ranking por closer ---------- */
+  const nomes = [...new Set([...rows.map(d=>d.v), ...cs.map(d=>d.v)])];
+  const closers = nomes.map(v=>{
+    const c = cs.filter(d=>d.v===v), g = ganhos.filter(d=>d.v===v);
+    return {v, n:c.length, ganhos:g.length, reemb:c.reduce((a,d)=>a+(d.reemb||0),0),
+            taxa: g.length ? c.length/g.length : 0};
+  }).filter(x=>x.ganhos||x.n).sort((a,b)=>b.n-a.n || b.taxa-a.taxa);
+  const maxN = Math.max(1,...closers.map(x=>x.n));
+  el("ch-rank").innerHTML = closers.length ? closers.map((x,i)=>`<div class="rk">
+      <span class="pos">${i+1}º</span>${AV(x.v,34)}
+      <span><span class="nm">${esc(x.v)}</span>
+        <span class="sb"> · ${x.ganhos} ganhos${x.n?` · ${PCT(x.taxa)} cancelaram`:" · nenhum churn"}${
+          x.reemb?` · ${BRL(x.reemb)} devolvido`:""}</span></span>
+      <span class="vl" style="color:${x.n?"var(--rosa)":"var(--oliva)"}">${x.n||"—"}</span>
+      <span class="bar"><span class="fl" style="width:${x.n/maxN*100}%;
+        background:${x.n?"linear-gradient(90deg,var(--rosa),var(--ambar))":"var(--card-2)"}"></span></span>
+    </div>`).join("") : '<div class="empty">Nenhum ganho no período</div>';
+
+  /* ---------- motivos ---------- */
+  /* ---------- quanto tempo até cancelar ---------- */
+  const fx=[[`Até ${DIAS_PRECOCE} dias · precoce`,0,DIAS_PRECOCE],
+            [`${DIAS_PRECOCE+1} a 30 dias`,DIAS_PRECOCE+1,30],
+            ["31 a 90 dias",31,90],["Mais de 90",91,1e9]];
+  const dur=cs.map(d=>({d, dias:difDias(d.dGanho,d.dc)})).filter(x=>x.dias!=null);
+  const maxD=Math.max(1,...fx.map(([,a,b])=>dur.filter(x=>x.dias>=a&&x.dias<=b).length));
+  el("ch-tempo").innerHTML=`<h3>Quanto tempo até cancelar</h3>` + fx.map(([l,a,b],i)=>{
+    const n=dur.filter(x=>x.dias>=a&&x.dias<=b).length;
+    return `<div class="bar"><span class="lbl">${l}</span><span class="num">${n}</span>
+      <span class="track"><span class="fill" style="width:${n/maxD*100}%${
+        i===0?";background:linear-gradient(90deg,var(--rosa),var(--ambar))":""}"></span></span></div>`;
+  }).join("") + (dur.length?"":`<div class="vazio">Sem data de ganho ou de cancelamento</div>`);
+
+  /* ---------- reembolso por Buddy ---------- */
+  const comBuddy = cs.filter(d=>d.buddy);
+  const buddies = [...new Set(comBuddy.map(d=>d.buddy))].map(b=>{
+    const r = comBuddy.filter(d=>d.buddy===b);
+    return {b, n:r.length, reemb:r.reduce((a,d)=>a+(d.reemb||0),0),
+            val:r.reduce((a,d)=>a+d.val,0), precoce:r.filter(ehPrecoce).length};
+  }).sort((a,b)=>b.reemb-a.reemb || b.n-a.n);
+  const maxB = Math.max(1,...buddies.map(x=>x.reemb||x.n));
+  el("ch-buddy").innerHTML = buddies.length ? buddies.map((x,i)=>`<div class="rk">
+      <span class="pos">${i+1}º</span>${AV(x.b,34)}
+      <span><span class="nm">${esc(x.b)}</span>
+        <span class="sb"> · ${x.n} cancelamento(s)${x.precoce?` · ${x.precoce} precoce`:""}</span></span>
+      <span class="vl" style="color:var(--rosa)">${x.reemb?BRL(x.reemb):"—"}</span>
+      <span class="bar"><span class="fl" style="width:${(x.reemb||x.n)/maxB*100}%;
+        background:linear-gradient(90deg,var(--rosa),var(--peri))"></span></span>
+    </div>`).join("")
+    + (cs.length-comBuddy.length ? `<div class="mini" style="margin-top:10px">
+        ${cs.length-comBuddy.length} cancelamento(s) sem Buddy preenchido.</div>` : "")
+    : '<div class="empty">Nenhum cancelamento com Buddy preenchido</div>';
+
+  /* ---------- produto ---------- */
+  const prods=[...new Set([...ganhos.map(d=>d.p), ...cs.map(d=>d.p)])]
+    .map(p=>{ const v=ganhos.filter(d=>d.p===p), c=cs.filter(d=>d.p===p);
+      return {p, v:v.length, c:c.length, taxa:v.length?c.length/v.length:null,
+              precoce:c.filter(ehPrecoce).length,
+              reemb:c.reduce((a,d)=>a+(d.reemb||0),0)}; })
+    .filter(x=>x.v||x.c)
+    .sort((a,b)=>(b.taxa??-1)-(a.taxa??-1) || b.v-a.v);
+  el("ch-produto").innerHTML=`<thead><tr><th>Produto</th><th class="n">Vendidos</th>
+    <th class="n">Cancel.</th><th class="n">Precoce</th><th class="n">%</th>
+    <th class="n">R$ reemb.</th></tr></thead>
+    <tbody>${prods.map(x=>`<tr><td style="white-space:normal">${esc(x.p)}</td>
+      <td class="n">${x.v}</td>
+      <td class="n" style="color:${x.c?"var(--rosa)":"inherit"}">${x.c}</td>
+      <td class="n" style="color:${x.precoce?"var(--rosa)":"inherit"}">${x.precoce||'<span class="dim">—</span>'}</td>
+      <td class="n" style="color:${x.taxa>META_CHURN?"var(--rosa)":"inherit"}">${x.taxa!=null?PCT(x.taxa):'<span class="dim">—</span>'}</td>
+      <td class="n">${x.reemb?BRL(x.reemb):'<span class="dim">—</span>'}</td></tr>`).join("")
+      || '<tr><td colspan="6" class="empty">Nenhuma venda no período</td></tr>'}</tbody>`;
+
+  /* ---------- quem cancelou ---------- */
+  el("ch-lista-sub").textContent = `${cs.length} cancelamento(s) · ${BRL(reemb)} reembolsado`
+    + ` · ${precoces.length} precoce(s)`;
+  const lin=[...cs].sort((a,b)=>String(b.dc).localeCompare(String(a.dc))).map(d=>{
+    const dias=difDias(d.dGanho,d.dc), prec=ehPrecoce(d);
+    return `<tr><td class="name">${esc(d.t)} ${linkDeal(d)}${
+        prec?' <span class="pill p-lost">precoce</span>':""}</td>
+      <td><span class="who">${AV(d.v,22)}${esc(d.v)}</span></td>
+      <td>${d.buddy?`<span class="who">${AV(d.buddy,22)}${esc(d.buddy)}</span>`:'<span class="dim">—</span>'}</td>
+      <td class="dim" style="white-space:normal;min-width:170px">${esc(d.p)}</td>
+      <td class="dim" style="white-space:normal">${d.cm?.length?d.cm.map(esc).join(", "):"—"}</td>
+      <td class="n">${BRL(d.val)}</td>
+      <td class="n" style="color:${d.reemb?"var(--rosa)":"inherit"}">${d.reemb?BRL(d.reemb):"—"}</td>
+      <td class="n">${brData(d.dGanho)}</td><td class="n">${brData(d.dc)}</td>
+      <td class="n" style="color:${prec?"var(--rosa)":"inherit"}">${dias!=null?dias+"d":"—"}</td></tr>`;
+  }).join("");
+  el("ch-lista").innerHTML=`<thead><tr><th>Cliente</th><th>Closer</th><th>Buddy</th><th>Produto</th>
+    <th>Motivo</th><th class="n">Valor</th><th class="n">Reembolso</th><th class="n">Ganho</th>
+    <th class="n">Cancelou</th><th class="n">Durou</th></tr></thead>
+    <tbody>${lin||'<tr><td colspan="10" class="empty">Nenhum cancelamento no período</td></tr>'}</tbody>`;
+
+}
+
+/* Doze meses de cancelamento, sempre — é a única forma de ver se o churn está
+   subindo ou se o mês ruim foi ponto fora da curva. Não obedece ao filtro do topo
+   de propósito: um mês isolado não mostra tendência nenhuma.
+
+   São dois gráficos, não um. Antes eu tinha empilhado contagem e dinheiro no mesmo
+   desenho, com duas escalas — isso deixa qualquer comparação sem sentido, porque a
+   altura de uma série não quer dizer nada em relação à outra. Cada medida no seu
+   gráfico, cada gráfico com um eixo só. */
+/* O ano civil do período escolhido: janeiro até o mês do filtro. Não é janela
+   móvel de 12 meses — misturar dois anos no mesmo gráfico não deixa ninguém
+   comparar com a meta do ano. */
+function anoDoFiltro(){ return (state.ate || hojeISO).slice(0,4); }
+function mesesDoAno(){
+  const ano = anoDoFiltro();
+  const ultimo = Number((state.ate || hojeISO).slice(5,7));
+  const r=[];
+  for(let m=1; m<=ultimo; m++) r.push(`${ano}-${String(m).padStart(2,"0")}`);
+  return r;
+}
+const rotMes = mm => mm.slice(5)+"/"+mm.slice(2,4);
+
+/* Cancelamentos por mês. Duas séries empilhadas: cada segmento leva o próprio
+   número, e o total fica acima da barra — assim ninguém precisa medir altura no
+   olho. O respiro de 2px entre os segmentos separa sem depender só da cor. */
+function renderChurnQtd12(){
+  el("ch-qtd-sub").textContent =
+    `ano de ${anoDoFiltro()} · quantos, e quantos caíram logo na primeira semana`;
+  if(!CHURN12.length){
+    el("ch-qtd12").innerHTML=`<div class="empty">Nenhum cancelamento em ${anoDoFiltro()}</div>`; return;
+  }
+  const dados = mesesDoAno().map(mm=>{
+    const c = CHURN12.filter(d=>mesDe(d.dc)===mm);
+    const p = c.filter(ehPrecoce).length;
+    return {mm, n:c.length, precoce:p, resto:c.length-p,
+            reemb:c.reduce((a,d)=>a+(d.reemb||0),0)};
+  });
+  const pico = Math.max(1, ...dados.map(d=>d.n));
+  const teto = pico + Math.max(1, Math.ceil(pico*0.18));   // ar em cima para o rótulo
+
+  // Largura fixa no viewBox e ALTURA TRAVADA em pixels no CSS. Com width:100% e
+  // altura automática, o SVG escala junto com a tela — em monitor largo os 190px
+  // do desenho viravam 600px na cara do usuário. Era esse o "gráfico enorme".
+  const W=1100, H=230, PT=26, PB=42, PL=34, PR=14;
+  const passo=(W-PL-PR)/dados.length, larg=Math.min(46, passo-26);
+  const x=i=>PL+i*passo+(passo-larg)/2;
+  const base=H-PB;
+  const alt=v=>(v/teto)*(base-PT);
+
+  // grade discreta: três linhas, nada mais
+  const marcas=[0, Math.round(teto/2), teto].filter((v,i,a)=>a.indexOf(v)===i);
+  const grade=marcas.map(v=>{
+    const yy=base-alt(v);
+    return `<line x1="${PL}" y1="${yy.toFixed(1)}" x2="${W-PR}" y2="${yy.toFixed(1)}"
+      stroke="var(--line)" stroke-width="1" ${v?'stroke-dasharray="3 5"':""}/>
+      <text x="${PL-9}" y="${(yy+3.5).toFixed(1)}" text-anchor="end" font-size="9.5"
+        fill="var(--faint)" font-family="var(--mono)">${v}</text>`;
+  }).join("");
+
+  const barras = dados.map((d,i)=>{
+    const cx=(x(i)+larg/2).toFixed(1);
+    const rotMesTxt=`<text x="${cx}" y="${H-24}" text-anchor="middle" font-size="10"
+        fill="var(--muted)" font-family="var(--mono)">${rotMes(d.mm)}</text>`;
+    if(!d.n) return `<line x1="${x(i).toFixed(1)}" y1="${base}" x2="${(x(i)+larg).toFixed(1)}"
+        y2="${base}" stroke="var(--line)" stroke-width="2" stroke-linecap="round"/>
+      <text x="${cx}" y="${base-9}" text-anchor="middle" font-size="10"
+        fill="var(--faint)" font-family="var(--mono)">0</text>${rotMesTxt}`;
+
+    const folga = (d.precoce && d.resto) ? 2 : 0;
+    const aR=alt(d.resto), aP=alt(d.precoce);
+    const yR=base-aR;
+    const yP=base-aR-folga-Math.max(aP, d.precoce?3:0);
+    const topo=d.precoce?yP:yR;
+
+    // rótulo dentro do segmento só quando cabe; senão vai para o lado, em cinza
+    const dentro=(y,h,txt,cor)=> h>=17
+      ? `<text x="${cx}" y="${(y+h/2+3.6).toFixed(1)}" text-anchor="middle" font-size="10.5"
+          font-weight="700" fill="var(--bg)" font-family="var(--mono)">${txt}</text>`
+      : "";
+
+    return `${d.resto?`<rect x="${x(i).toFixed(1)}" y="${yR.toFixed(1)}" width="${larg.toFixed(1)}"
+          height="${aR.toFixed(1)}" fill="var(--rosa)" rx="4"/>${dentro(yR,aR,d.resto)}`:""}
+      ${d.precoce?`<rect x="${x(i).toFixed(1)}" y="${yP.toFixed(1)}" width="${larg.toFixed(1)}"
+          height="${Math.max(aP,3).toFixed(1)}" fill="var(--ambar)" rx="4"/>${
+          dentro(yP,Math.max(aP,3),d.precoce)}`:""}
+      <text x="${cx}" y="${(topo-9).toFixed(1)}" text-anchor="middle" font-size="12.5"
+        font-weight="800" fill="var(--fg)" font-family="var(--mono)">${d.n}</text>
+      ${d.reemb?`<text x="${cx}" y="${H-11}" text-anchor="middle" font-size="9"
+        fill="var(--faint)" font-family="var(--mono)">${(d.reemb/1000).toFixed(0)}k</text>`:""}
+      ${rotMesTxt}`;
+  }).join("");
+
+  const tot=dados.reduce((a,d)=>a+d.n,0), totP=dados.reduce((a,d)=>a+d.precoce,0);
+  const totR=dados.reduce((a,d)=>a+d.reemb,0);
+  const pior=[...dados].sort((a,b)=>b.n-a.n)[0];
+
+  el("ch-qtd12").innerHTML=`
+    <div class="legend" style="margin-bottom:12px;gap:18px;flex-wrap:wrap">
+      <span><i style="width:10px;height:10px;border-radius:3px;background:var(--rosa);
+        display:inline-block;margin-right:7px"></i>Depois de ${DIAS_PRECOCE} dias</span>
+      <span><i style="width:10px;height:10px;border-radius:3px;background:var(--ambar);
+        display:inline-block;margin-right:7px"></i>Precoce · até ${DIAS_PRECOCE} dias</span>
+      <span style="margin-left:auto;font-family:var(--mono)">${tot} em ${anoDoFiltro()} ·
+        ${totP} precoce${tot?` (${PCT(totP/tot)})`:""} · ${BRL(totR)} devolvido</span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"
+      style="width:100%;height:230px;display:block"
+      role="img" aria-label="Cancelamentos por mês, separando os precoces">
+      ${grade}
+      ${barras}
+      <line x1="${PL}" y1="${base}" x2="${W-PR}" y2="${base}"
+        stroke="var(--line)" stroke-width="1.5"/>
+    </svg>
+    <div class="mini" style="margin-top:8px">Número em cima de cada barra é o total do mês;
+    dentro de cada faixa, o valor dela. Embaixo do mês, o reembolso em milhares.${
+      pior&&pior.n?` Pior mês: <b>${rotMes(pior.mm)}</b> com ${pior.n}.`:""}</div>`;
+}
+
+/* De quem foi o churn. O campo "Motivo Churn" é múltipla escolha, então um
+   cancelamento pode entrar em mais de uma área — a conta é de citações, não de
+   pessoas, e a tela fala isso em vez de fingir que fecha 100%. */
+function renderChurnCulpa(cs){
+  const cont = {}, semMotivo = cs.filter(d=>!d.cm?.length).length;
+  cs.forEach(d=>(d.cm||[]).forEach(m=>{
+    const a=areaDe(m); cont[a]=(cont[a]||{n:0, reemb:0, motivos:{}});
+    cont[a].n++; cont[a].reemb+=d.reemb||0;
+    cont[a].motivos[m]=(cont[a].motivos[m]||0)+1;
+  }));
+  const linhas = AREAS.map(([nome,cor,oq])=>({nome,cor,oq,...(cont[nome]||{n:0,reemb:0,motivos:{}})}))
+    .filter(x=>x.n).sort((a,b)=>b.n-a.n);
+  const total = linhas.reduce((a,x)=>a+x.n,0);
+
+  if(!total){
+    el("ch-culpa").innerHTML = `<div class="vazio">Nenhum cancelamento com "Motivo Churn" preenchido${
+      semMotivo?` · ${semMotivo} sem motivo`:""}</div>`;
+    return;
+  }
+  const max = Math.max(...linhas.map(x=>x.n));
+  el("ch-culpa").innerHTML = linhas.map(x=>`
+    <div style="padding:11px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <i style="width:9px;height:9px;border-radius:3px;background:${x.cor};flex:none"></i>
+        <b style="font-size:14px">${x.nome}</b>
+        <span class="dim" style="font-size:11.5px">${x.oq}</span>
+        <span style="margin-left:auto;font-family:var(--mono);font-weight:700;color:${x.cor}">
+          ${x.n}</span>
+        <span class="dim" style="font-family:var(--mono);font-size:11px">${PCT(x.n/total)}</span>
+      </div>
+      <div class="trilha" style="margin:7px 0 6px"><i
+        style="width:${x.n/max*100}%;background:${x.cor}"></i></div>
+      <div class="mini">${Object.entries(x.motivos).sort((a,b)=>b[1]-a[1])
+        .map(([m,n])=>`${esc(m)} <b>${n}</b>`).join(" · ")}${
+        x.reemb?` — ${BRL(x.reemb)} devolvido`:""}</div>
+    </div>`).join("")
+    + `<div class="mini" style="margin-top:10px">${total} citação(ões) de motivo em ${cs.length}
+       cancelamento(s) — o campo aceita mais de um motivo, então a soma passa de 100%.${
+       semMotivo?` <b>${semMotivo}</b> sem motivo preenchido.`:""}</div>`;
+}
+
+/* ==========================================================
+   PÁGINA REUNIÕES
+   ========================================================== */
+/* DOR é diferente de OBJEÇÃO, e o painel tratava as duas como a mesma coisa.
+   Objeção é o que trava a venda ("sem caixa", "preciso falar com o sócio").
+   Dor é o problema que fez o lead sentar na reunião — e é ela que diz para o
+   marketing qual promessa atrai, e para o produto o que precisa entregar.
+
+   A dor é lida do texto da análise da call (resumo e "por que não fechou"), com
+   uma lista de gatilhos. Esta lista é um primeiro corte: dá para corrigir e
+   ampliar sem mexer em mais nada do painel. */
+const DORES = [
+  ["Não vende / faturamento parado", /n[ãa]o (est[áa] )?vend|sem venda|faturamento (parado|caiu|baixo)|vendas? (ca[íi]ram|parad|baix)|estagnad/i],
+  ["Sem tráfego / anúncio não performa", /tr[áa]fego|an[úu]ncio|ads|campanha|impuls|ROAS|CPA|não aparec/i],
+  ["Margem e precificação", /margem|precifica|pre[çc]o (baixo|errado)|lucro (baixo|apertado)|preju/i],
+  ["Estoque parado / capital preso", /estoque (parado|encalhad)|capital preso|produto parado|encalh/i],
+  ["Problema no marketplace", /marketplace|mercado ?livre|shopee|amazon|reputa[çc][ãa]o|conta (bloquead|suspens)|banid/i],
+  ["Logística e frete", /log[íi]stic|frete|entrega|transportadora|envio/i],
+  ["Sem equipe / dono sobrecarregado", /sozinh|sem equipe|sobrecarreg|faz tudo|n[ãa]o tem time|contratar/i],
+  ["Sem processo / desorganização", /sem processo|desorganiz|bagun[çc]|n[ãa]o tem controle|planilha/i],
+  ["Não sabe por onde começar", /n[ãa]o sabe por onde|perdid|sem dire[çc][ãa]o|no escuro|tentando de tudo/i],
+  ["Concorrência / guerra de preço", /concorr[êe]nc|guerra de pre[çc]o|copiaram|copia/i],
+  ["Dívida / fluxo de caixa", /d[íi]vida|endivid|fluxo de caixa|inadimpl|juros/i],
+];
+
+/* O texto da análise que fala do CLIENTE — não o que fala do closer. */
+function textoDoLead(an){
+  return [an.resumo, an.porque, ...(an.erro||[])].filter(Boolean).join(" ");
+}
+function doresDe(d){
+  if(!d.an) return [];
+  const t = textoDoLead(d.an);
+  return DORES.filter(([,re])=>re.test(t)).map(([nome])=>nome);
+}
+
+function renderDores(rows){
+  const ans = rows.filter(d=>d.an);
+  if(!ans.length){
+    el("re-dores").innerHTML='<tbody><tr><td class="empty">Sem análises de call no período</td></tr></tbody>';
+    return;
+  }
+  const m={}; let semDor=0;
+  ans.forEach(d=>{
+    const ds = doresDe(d);
+    if(!ds.length){ semDor++; return; }
+    ds.forEach(k=>{
+      m[k] = m[k] || {n:0, won:0, lost:0, open:0, receita:0, notas:[]};
+      m[k].n++; m[k][d.s]++;
+      if(d.s==="won") m[k].receita += d.val;
+      m[k].notas.push(d.an.nota);
+    });
+  });
+  const ks = Object.keys(m).sort((a,b)=>m[b].n-m[a].n);
+  if(!ks.length){
+    el("re-dores").innerHTML=`<tbody><tr><td class="empty">
+      Nenhuma das dores da lista apareceu nas ${ans.length} análise(s) do período.</td></tr></tbody>`;
+    return;
+  }
+  const max = Math.max(...ks.map(k=>m[k].n));
+  el("re-dores").innerHTML=`<thead><tr><th style="min-width:230px">Dor</th>
+    <th class="n">Reuniões</th><th style="width:22%">Peso</th>
+    <th class="n">Ganhos</th><th class="n">Perdas</th><th class="n">Conv.</th>
+    <th class="n">Nota média</th><th class="n">Receita</th></tr></thead>
+    <tbody>${ks.map(k=>{
+      const x=m[k], f=x.won+x.lost, conv=f?x.won/f:null;
+      const nota=x.notas.reduce((a,b)=>a+b,0)/x.notas.length;
+      return `<tr><td style="white-space:normal">${esc(k)}</td>
+        <td class="n">${x.n}</td>
+        <td><span class="trilha"><i style="width:${x.n/max*100}%;background:var(--roxo-2)"></i></span></td>
+        <td class="n" style="color:var(--oliva)">${x.won}</td>
+        <td class="n" style="color:var(--rosa)">${x.lost}</td>
+        <td class="n" style="color:${conv!=null&&conv<0.35?"var(--rosa)":"inherit"}">${conv!=null?PCT(conv):'<span class="dim">—</span>'}</td>
+        <td class="n"><span class="nota n-${faixa(nota)}">${NUM(nota)}</span></td>
+        <td class="n">${x.receita?BRL(x.receita):'<span class="dim">—</span>'}</td></tr>`;
+    }).join("")}</tbody>
+    <tbody><tr><td colspan="8" class="mini" style="padding:10px 16px">
+      Lido de ${ans.length} análise(s); uma reunião pode trazer mais de uma dor.${
+      semDor?` <b>${semDor}</b> sem nenhuma dor da lista reconhecida.`:""}</td></tr></tbody>`;
+}
+
+/* Quem contorna melhor cada objeção.
+   Só entra objeção ouvida NA REUNIÃO: a que vem do motivo da perda está, por
+   definição, em negócio perdido — o contorno daria 0% para todo mundo e não
+   diria nada sobre ninguém. */
+function renderContorno(rows){
+  const daCall = d => (d.obj||[]).filter(o=>o.origem==="call").map(o=>o.nome);
+  const enfrentou = rows.filter(d=>daCall(d).length && (d.s==="won"||d.s==="lost"));
+  if(!enfrentou.length){
+    el("re-contorno").innerHTML='<tbody><tr><td class="empty">Nenhuma objeção de reunião em negócio já fechado no período</td></tr></tbody>';
+    return;
+  }
+  const vezes={};
+  enfrentou.forEach(d=>daCall(d).forEach(k=>vezes[k]=(vezes[k]||0)+1));
+  const cols=Object.keys(vezes).sort((a,b)=>vezes[b]-vezes[a]).slice(0,6);
+  const nomes=[...new Set(enfrentou.map(d=>d.v))];
+
+  const cel=(arr)=>{
+    if(!arr.length) return '<td class="n dim">—</td>';
+    const g=arr.filter(d=>d.s==="won").length, t=g/arr.length;
+    const cor = t>=0.5?"var(--oliva)":t>0?"var(--ambar)":"var(--rosa)";
+    return `<td class="n"><span style="color:${cor};font-weight:700">${PCT(t)}</span>
+      <div class="mini">${g}/${arr.length}</div></td>`;
+  };
+  const linhas=nomes.map(v=>{
+    const r=enfrentou.filter(d=>d.v===v);
+    const g=r.filter(d=>d.s==="won").length;
+    return {v, r, n:r.length, taxa:r.length?g/r.length:0};
+  }).sort((a,b)=>b.taxa-a.taxa || b.n-a.n);
+
+  el("re-contorno").innerHTML=`<thead><tr><th>Closer</th>
+    ${cols.map(k=>`<th class="n" style="white-space:normal;min-width:96px">${esc(k)}
+      <div class="mini">${vezes[k]}x</div></th>`).join("")}
+    <th class="n">Geral</th></tr></thead>
+    <tbody>${linhas.map(x=>`<tr>
+      <td class="name"><span class="who">${AV(x.v,22)}${esc(x.v)}</span></td>
+      ${cols.map(k=>cel(x.r.filter(d=>daCall(d).includes(k)))).join("")}
+      ${cel(x.r)}</tr>`).join("")}
+    <tr class="total"><td>Time</td>
+      ${cols.map(k=>cel(enfrentou.filter(d=>daCall(d).includes(k)))).join("")}
+      ${cel(enfrentou)}</tr></tbody>`;
+}
+
+function renderPgReunioes(rows){
+  const ans = rows.filter(d=>d.an);
+  const notas = ans.map(d=>d.an.nota);
+  const media = notas.length ? notas.reduce((a,b)=>a+b,0)/notas.length : null;
+  const comFala = ans.filter(d=>d.an.cp!=null);
+  const fala = comFala.length ? comFala.reduce((a,d)=>a+d.an.cp,0)/comFala.length : null;
+  const mon = comFala.filter(d=>d.an.cp>=75).length;
+  const dur = ans.filter(d=>d.an.dur);
+
+  el("re-cards").innerHTML = [
+    ["Calls analisadas", ans.length, "", `de ${rows.length} negócios`],
+    ["Nota média", media!=null?NUM(media):"—", media!=null?(media>=8?"var(--oliva)":media>=6.5?"var(--ciano)":media>=5?"var(--ambar)":"var(--rosa)"):"", media!=null?faixa(media):"sem análise"],
+    ["Fala do closer", fala!=null?fala.toFixed(0)+"%":"—", fala>=70?"var(--ambar)":"", "meta: abaixo de 65%"],
+    ["Monólogos", mon, mon?"var(--rosa)":"", "passaram de 75% de fala"],
+    ["Duração média", dur.length?Math.round(dur.reduce((a,d)=>a+d.an.dur,0)/dur.length)+" min":"—", "", "por call"],
+  ].map(([k,v,c,sub])=>`<div class="stat"><span class="k">${k}</span>
+      <span class="v" style="color:${c||"inherit"}">${v}</span><span class="s">${sub}</span></div>`).join("");
+
+  const closers=[...new Set(ans.map(d=>d.v))].map(v=>{
+    const r=ans.filter(d=>d.v===v);
+    const m=r.reduce((a,d)=>a+d.an.nota,0)/r.length;
+    const cf=r.filter(d=>d.an.cp!=null);
+    return {v, n:r.length, media:m, fala: cf.length?cf.reduce((a,d)=>a+d.an.cp,0)/cf.length:null};
+  }).sort((a,b)=>b.media-a.media);
+  el("re-rank").innerHTML = closers.length ? closers.map((x,i)=>`<div class="rk">
+      <span class="pos">${i+1}º</span>${AV(x.v,34)}
+      <span><span class="nm">${esc(x.v)}</span>
+        <span class="sb"> · ${x.n} call(s)${x.fala!=null?` · fala ${x.fala.toFixed(0)}%`:""}</span></span>
+      <span class="vl"><span class="nota n-${faixa(x.media)}">${NUM(x.media)}</span></span>
+      <span class="bar"><span class="fl" style="width:${x.media/10*100}%"></span></span>
+    </div>`).join("") : '<div class="empty">Nenhuma análise no período</div>';
+
+  const fxs=[["Forte · 8 a 10","forte",n=>n>=8],["Boa · 6,5 a 8","boa",n=>n>=6.5&&n<8],
+             ["Mediana · 5 a 6,5","mediana",n=>n>=5&&n<6.5],["Grave · abaixo de 5","grave",n=>n<5]];
+  const maxF=Math.max(1,...fxs.map(([,,f])=>notas.filter(f).length));
+  const CORF={forte:"var(--oliva)",boa:"var(--ciano)",mediana:"var(--ambar)",grave:"var(--rosa)"};
+  el("re-faixas").innerHTML=`<h3>Distribuição das notas</h3>`+fxs.map(([l,k,f])=>{
+    const n=notas.filter(f).length;
+    return `<div class="bar"><span class="lbl">${l}</span>
+      <span class="num">${n}${notas.length?` <span class="dim">· ${PCT(n/notas.length)}</span>`:""}</span>
+      <span class="track"><span class="fill" style="width:${n/maxF*100}%;background:${CORF[k]}"></span></span></div>`;
+  }).join("") + (notas.length?"":'<div class="vazio">Sem análises no período</div>');
+
+  // objeções, com a origem à mostra
+  const m={};
+  rows.forEach(d=>(d.obj||[]).forEach(o=>{
+    const k=o.nome;
+    m[k]=m[k]||{n:0,won:0,lost:0,open:0,call:0,perda:0};
+    m[k].n++; m[k][d.s]++; m[k][o.origem]++; }));
+  const ko=Object.keys(m).sort((a,b)=>m[b].n-m[a].n);
+  el("re-obj").innerHTML=`<thead><tr><th>Objeção / motivo</th><th class="n">Na reunião</th>
+    <th class="n">Na perda</th><th class="n">Vezes</th>
+    <th class="n">Ganhos</th><th class="n">Perdas</th><th class="n">Contorno</th></tr></thead>
+    <tbody>${ko.map(k=>{const o=m[k], f=o.won+o.lost, t=f?o.won/f:null;
+      return `<tr><td style="white-space:normal">${esc(k)}</td>
+        <td class="n" style="color:${o.call?"var(--roxo-2)":"inherit"}">${o.call||'<span class="dim">—</span>'}</td>
+        <td class="n" style="color:${o.perda?"var(--ambar)":"inherit"}">${o.perda||'<span class="dim">—</span>'}</td>
+        <td class="n">${o.n}</td><td class="n" style="color:var(--oliva)">${o.won}</td>
+        <td class="n" style="color:var(--rosa)">${o.lost}</td>
+        <td class="n" style="color:${t!=null&&t<0.35?"var(--rosa)":"inherit"}">${t!=null?PCT(t):"—"}</td></tr>`;
+    }).join("")||'<tr><td colspan="7" class="empty">Nada registrado no período</td></tr>'}</tbody>`;
+
+  renderDores(rows);
+  renderContorno(rows);
+  renderAIem("re-resumo", rows);
+
+  el("re-lista-sub").textContent = `${ans.length} análise(s) · clique na seta para abrir`;
+  const lista=[...ans].sort((a,b)=>a.an.nota-b.an.nota).map(d=>`<tr>
+      <td><button class="tw" data-an="${d.id}">${abertosNo.has("A"+d.id)?"▾":"▸"}</button></td>
+      <td class="n"><span class="nota n-${faixa(d.an.nota)}">${NUM(d.an.nota)}</span></td>
+      <td class="name">${esc(d.t)} ${linkDeal(d)}</td>
+      <td><span class="who">${AV(d.v,22)}${esc(d.v)}</span></td>
+      <td class="dim" style="white-space:normal;min-width:150px">${esc(d.p)}</td>
+      <td>${badgeStatus(d)}</td>
+      <td class="n">${d.an.dur?d.an.dur+" min":'<span class="dim">—</span>'}</td>
+      <td class="n" style="color:${d.an.cp>=75?"var(--rosa)":"inherit"}">${d.an.cp!=null?d.an.cp+"%":'<span class="dim">—</span>'}</td>
+      <td>${(d.obj||[]).slice(0,3).map(o=>`<span class="objchip">${esc(o.nome)}</span>`).join("")||'<span class="dim">—</span>'}</td></tr>`
+      + (abertosNo.has("A"+d.id)?`<tr class="detail"><td colspan="9">${detalhe(d)}</td></tr>`:"")).join("");
+  el("re-lista").innerHTML=`<thead><tr><th style="width:30px"></th><th class="n">Nota</th><th>Cliente</th>
+    <th>Closer</th><th>Produto</th><th>Status</th><th class="n">Duração</th><th class="n">Fala</th>
+    <th>Objeções</th></tr></thead>
+    <tbody>${lista||'<tr><td colspan="9" class="empty">Nenhuma análise de call no período</td></tr>'}</tbody>`;
+  el("re-lista").querySelectorAll("[data-an]").forEach(b=>b.addEventListener("click",()=>{
+    const k="A"+b.dataset.an; abertosNo.has(k)?abertosNo.delete(k):abertosNo.add(k); render();
+  }));
+}
+
+// o mesmo resumo da Visão geral, escrito em outro lugar da tela
+function renderAIem(id, rows){ renderAI(rows, id); }
+
+
+/* ==========================================================
+   PÁGINA CLOSERS
+   ========================================================== */
+// Tudo de um closer num objeto só, para não recalcular em cada bloco.
+function perfilCloser(rows, v){
+  const r = rows.filter(d=>d.v===v);
+  const won = r.filter(d=>d.s==="won"), lost = r.filter(d=>d.s==="lost");
+  const churn = r.filter(d=>d.churn);
+  const receita = won.reduce((a,d)=>a+d.val,0);
+  const ciclos = won.map(d=>difDias(d.dCriacao,d.dGanho)).filter(x=>x!=null&&x>=0);
+  const comLista = won.filter(d=>d.precoLista>0);
+  const lista = comLista.reduce((a,d)=>a+d.precoLista,0);
+  const praticado = comLista.reduce((a,d)=>a+d.val,0);
+  const notas = r.filter(d=>d.an).map(d=>d.an.nota);
+  return {
+    v, r, won, lost, churn, receita,
+    opp: r.length,
+    conv: r.length ? won.length/r.length : 0,
+    net:  r.length ? (won.length-churn.length)/r.length : 0,
+    ticket: won.length ? receita/won.length : 0,
+    ciclo: ciclos.length ? ciclos.reduce((a,b)=>a+b,0)/ciclos.length : null,
+    desconto: lista ? 1-praticado/lista : null,
+    score: notas.length ? notas.reduce((a,b)=>a+b,0)/notas.length : null,
+    nNotas: notas.length,
+  };
+}
+function mediaDe(perfis, campo){
+  const v = perfis.map(p=>p[campo]).filter(x=>x!=null && isFinite(x));
+  return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null;
+}
+function renderPgClosers(rows){
+  const nomes = [...new Set(rows.map(d=>d.v))];
+  const P = nomes.map(v=>perfilCloser(rows,v)).sort((a,b)=>b.receita-a.receita);
+  if(!P.length){
+    el("cl-cards").innerHTML='<div class="empty" style="grid-column:1/-1">Nenhum negócio no período</div>';
+    return;
+  }
+  const tot = {
+    opp: rows.length,
+    won: rows.filter(d=>d.s==="won").length,
+    receita: rows.filter(d=>d.s==="won").reduce((a,d)=>a+d.val,0),
+    churn: rows.filter(d=>d.churn).length,
+  };
+  const mCiclo = mediaDe(P,"ciclo");
+  const mConv = tot.opp ? tot.won/tot.opp : 0;
+  const mNet  = tot.opp ? (tot.won-tot.churn)/tot.opp : 0;
+  const mTicket = tot.won ? tot.receita/tot.won : 0;
+
+  // receita primeiro: é o número que o dono cobra.
+  el("cl-cards").innerHTML = [
+    ["Receita do time", BRL(tot.receita), "var(--oliva)", `${tot.won} ganhos`],
+    ["Conversão bruta", PCT(mConv), "var(--roxo-2)", `${tot.won} de ${tot.opp} oportunidades`],
+    ["Conversão líquida", PCT(mNet), "var(--lima)", `${tot.won} − ${tot.churn} churn`],
+    ["Ticket médio", mTicket?BRL(mTicket):"—", "", "do time"],
+    ["Ciclo médio", mCiclo!=null?Math.round(mCiclo)+"d":"—", "", "criação até o ganho"],
+  ].map(([k,v,c,sub])=>`<div class="stat"><span class="k">${k}</span>
+      <span class="v" style="color:${c||"inherit"}">${v}</span><span class="s">${sub}</span></div>`).join("");
+}
+
+/* Motivos de perda — mora na página Reuniões, junto das análises de call.
+   O nome fala do motivo, não da pessoa: a tabela existe para achar padrão, não culpado. */
+function renderPerdas(rows, id){
+  const P = [...new Set(rows.map(d=>d.v))].map(v=>perfilCloser(rows,v))
+    .filter(p=>p.lost.length).sort((a,b)=>b.lost.length-a.lost.length);
+  if(!P.length){
+    el(id).innerHTML='<tbody><tr><td class="empty">Nenhuma perda no período</td></tr></tbody>'; return;
+  }
+  const top3 = p => { const m={};
+    p.lost.forEach(d=>{ const k=d.lm||"Sem motivo"; m[k]=(m[k]||0)+1; });
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,3); };
+  el(id).innerHTML=`<thead><tr><th>Closer</th><th class="n">Perdas</th>
+    <th>Motivos mais frequentes</th></tr></thead><tbody>${P.map(p=>`<tr>
+      <td class="name"><span class="who">${AV(p.v,22)}${esc(p.v)}</span></td>
+      <td class="n" style="color:var(--rosa)">${p.lost.length}</td>
+      <td>${top3(p).map(([k,n])=>`<span class="objchip"
+        style="background:color-mix(in srgb,var(--ambar) 14%,transparent);color:var(--ambar)">${esc(k)} ${n}</span>`).join("")
+        || '<span class="dim">—</span>'}</td></tr>`).join("")}</tbody>`;
+}
+
+function renderAtencao(rows, cart){
+  const cr = cart.filter(d => ETAPAS_RET_FIXAS.includes(d.et) || d.et==="No Show"
+    || d.retAgendado || d.retRealizado || d.noShow);
+  const vencidos = cr.filter(d=>estadoRet(d)==="vencido");
+  const semData  = cr.filter(d=>estadoRet(d)==="semdata");
+  const churn    = rows.filter(d=>d.churn);
+  const risco    = rows.filter(d=>d.saude==="Risco");
+  const ruins    = rows.filter(d=>d.an && d.an.nota<5);
+  const cartoes = [
+    ["Retornos vencidos", vencidos.length, "var(--rosa)", vencidos.length?BRL(vencidos.reduce((a,d)=>a+d.val,0)):"nada atrasado", "retorno"],
+    ["Sem data marcada", semData.length, "var(--ambar)", "ninguém agendou nada", "retorno"],
+    ["Cancelamentos", churn.length, "var(--rosa)", churn.length?BRL(churn.reduce((a,d)=>a+(d.reemb||0),0))+" reembolsado":"nenhum no período", "churn"],
+    ["Alunos em risco", risco.length, "var(--ambar)", "Saúde do Aluno = Risco", "churn"],
+    ["Calls nota abaixo de 5", ruins.length, "var(--rosa)", "precisam de escuta", "reunioes"],
+  ];
+  el("vg-atencao").innerHTML = cartoes.map(([k,n,cor,sub,pg])=>`
+    <button class="stat" type="button" data-ir="${pg}" style="cursor:pointer;text-align:left;
+      border:1px solid ${n?"color-mix(in srgb,"+cor+" 40%,transparent)":"var(--line)"};font:inherit;color:inherit;width:100%">
+      <span class="k">${k}</span>
+      <span class="v" style="color:${n?cor:"inherit"}">${n}</span>
+      <span class="s">${sub}</span></button>`).join("");
+  el("vg-atencao").querySelectorAll("[data-ir]").forEach(x=>
+    x.addEventListener("click",()=>irPara(x.dataset.ir)));
+}
+
+function renderQualifVG(rows){
+  const letras = [...new Set(rows.map(d=>d.lead).filter(Boolean))].sort();
+  const semQ = rows.filter(d=>!d.lead).length;
+  if(!letras.length){
+    el("vg-qualif").innerHTML=`<h3>Qualificação dos leads</h3>
+      <div class="vazio">Campo "Lead" sem preenchimento no período</div>`;
+    return;
+  }
+  const max = Math.max(1, ...letras.map(l=>rows.filter(d=>d.lead===l).length), semQ);
+  el("vg-qualif").innerHTML = `<h3>Qualificação do que entrou · e o que virou venda</h3>` +
+    letras.map(l=>{
+      const arr = rows.filter(d=>d.lead===l);
+      const g = arr.filter(d=>d.s==="won").length;
+      const t = arr.length ? g/arr.length : 0;
+      return `<div class="bar"><span class="lbl">${chipLead(l)}</span>
+        <span class="num">${arr.length} <span class="dim">· ${PCT(t)} ganho</span></span>
+        <span class="track"><span class="fill ${t>=0.15?"fill-a":""}"
+          style="width:${arr.length/max*100}%"></span></span></div>`;
+    }).join("") + (semQ?`<div class="bar"><span class="lbl dim">Sem qualificação</span>
+      <span class="num">${semQ}</span><span class="track">
+      <span class="fill" style="width:${semQ/max*100}%;background:var(--faint)"></span></span></div>`:"");
+}
+
+/* ---------- roteador ---------- */
+const PAGINAS = {
+  geral:    {t:"Visão geral"},
+  retorno:  {t:"Retorno"},
+  churn:    {t:"Churn"},
+  sdr:      {t:"SDR"},
+  closers:  {t:"Closers"},
+  reunioes: {t:"Reuniões"},
+};
+function irPara(pg){
+  state.pg = PAGINAS[pg] ? pg : "geral";
+  document.querySelectorAll(".pg").forEach(x=>x.hidden = x.id !== "pg-"+state.pg);
+  document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on", a.dataset.pg===state.pg));
+  document.querySelector(".main").scrollIntoView({block:"start"});
+  render();
+}
+function trocaAba(aba){
+  state.aba = aba;
+  document.querySelectorAll("#abas-ret .aba").forEach(b=>b.classList.toggle("on", b.dataset.aba===aba));
+  ["hoje","desempenho"].forEach(a=>el("tab-"+a).hidden = a!==aba);
+  render();
+}
+
+/* ---------- render ---------- */
+function render(){
+  const b=base(), cart=carteira(), v=visible();
+  const br=x=>x?x.split("-").reverse().join("/"):"";
+  el("titulo").textContent = PAGINAS[state.pg].t;
+  el("fcount").textContent=`${b.length} no período · ${cart.length} abertos hoje`;
+
+  // só desenha a página aberta — o resto não custa nada enquanto está escondido
+  if(state.pg==="geral"){
+    const a=agg(b), aCart=agg(cart);
+    renderTiles(a,aCart); renderArea(); renderDonut(aCart,cart);
+    renderRank(b); renderAtencao(b,cart); renderQualifVG(b);
+    el("net").textContent=PCT(a.net);
+    el("netf").textContent=`(${a.won} ganhos − ${a.churn} churn) ÷ ${a.opp} oportunidades`;
+    el("sub").textContent=`${b.length} negócios · ${br(state.de)} a ${br(state.ate)}`;
+    return;
+  }
+  if(state.pg==="retorno"){
+    const cr = carteiraRet();
+    el("sub").textContent = state.aba==="desempenho"
+      ? `período ${br(state.de)} a ${br(state.ate)}`
+      : `${cr.length} negócios em retorno · carteira de hoje`;
+    if(state.aba==="hoje"){ renderAcao(cr); renderLastro(); renderDias(cr); renderListaRet(cr); }
+    else renderDesempenho(b);
+    return;
+  }
+  const br2=x=>x?x.split("-").reverse().join("/"):"";
+  if(state.pg==="churn"){
+    el("sub").textContent=`${b.filter(d=>d.churn).length} cancelamentos · ${br2(state.de)} a ${br2(state.ate)}`;
+    renderPgChurn(b); return;
+  }
+  if(state.pg==="reunioes"){
+    el("sub").textContent=`${b.filter(d=>d.an).length} análises · ${br2(state.de)} a ${br2(state.ate)}`;
+    renderPgReunioes(b); renderPerdas(b,"re-perdas"); return;
+  }
+  if(state.pg==="closers"){
+    el("sub").textContent=`${b.length} negócios · ${br2(state.de)} a ${br2(state.ate)}`;
+    renderPgClosers(b); renderHier(b); renderDeals(v); return;
+  }
+  el("sub").textContent = "em construção";
+  if(state.pg==="churnX") emObra("pg-churnX","Churn",
+    ["Cancelamentos negócio a negócio, com quanto durou e quanto foi reembolsado",
+     "Motivo do churn cruzado com produto, closer e nota da call",
+     "Alunos em risco antes de virar cancelamento",
+     "Reembolso sobre a receita, mês a mês"],
+    "A página vai aprofundar o que hoje é só um resumo.");
+  if(state.pg==="sdr") emObra("pg-sdr","SDR",
+    ["Funil: distribuído → conectado → qualificado → agendado → aceito pelo closer",
+     "Tempo de resposta: da distribuição até a primeira conexão",
+     "Onde o lead morre no funil",
+     "Qual canal conecta melhor: WhatsApp mensagem, ligação ou Meetime",
+     "Taxa de no-show e o que acontece depois dele",
+     "Cadência D0–D5 e atividades por SDR"],
+    "Depende de campos que ainda não são trazidos — é a próxima página depois desta.");
+  if(state.pg==="closers") emObra("pg-closers","Closers",
+    ["A tabela Vendedor › Produto › Lead, com mais camadas",
+     "Conversão por qualificação do lead — ganha só quando vem lead A?",
+     "Ciclo de venda em dias, por pessoa",
+     "Desconto praticado e o efeito dele na conversão",
+     "Score médio das calls e os erros que se repetem",
+     "Cada número comparado com a média do time"],
+    "Hoje a tabela já está lá, mas sem esses cortes.");
+  if(state.pg==="reunioes") emObra("pg-reunioes","Reuniões",
+    ["Cada análise da IA, uma a uma, com filtro e busca",
+     "Objeções separadas por origem: análise da call e motivo da perda",
+     "Distribuição das notas e evolução ao longo do tempo",
+     "Equilíbrio de fala do closer versus nota",
+     "O que mais deu errado, agrupado",
+     "Resumo geral do período"],
+    "Hoje existe o resumo e a tabela de objeções.");
+}
+
+["de","ate","basedata","orig","vend","prod","canal","lead","temp","ret"].forEach(k=>{
+  el("f-"+k).addEventListener("change", e=>{
+    state[k]=e.target.value; state.kpi="";
+    // mexer no período muda o que o Pipedrive precisa devolver
+    if(k==="de"||k==="ate"){ if(window.__recarregar) window.__recarregar(); return; }
+    render();
+  });
+});
+el("theme").addEventListener("click",()=>{
+  const cur=document.documentElement.getAttribute("data-theme");
+  document.documentElement.setAttribute("data-theme",cur==="light"?"dark":"light");
+});
+el("recarregar").addEventListener("click",()=>{ if(window.__recarregar) window.__recarregar(); });
+el("nav").addEventListener("click", e=>{
+  const a = e.target.closest("a[data-pg]"); if(!a) return;
+  e.preventDefault(); irPara(a.dataset.pg);
+});
+el("abas-ret").addEventListener("click", e=>{
+  const b = e.target.closest(".aba"); if(b) trocaAba(b.dataset.aba);
+});
+el("abas-churn").addEventListener("click", e=>{
+  const b = e.target.closest(".aba"); if(!b) return;
+  state.cba = b.dataset.cba;
+  el("abas-churn").querySelectorAll(".aba").forEach(x=>x.classList.toggle("on", x===b));
+  render();
+});
+
+// Busca reage enquanto digita; o resto da página não recarrega, só a tabela.
+el("deal-busca").addEventListener("input", e=>{ state.busca=e.target.value; render(); });
+el("deal-an").addEventListener("change", e=>{ state.an=e.target.value; render(); });
+el("deal-limpa").addEventListener("click", ()=>{ state.busca=""; state.an=""; render(); });
+
+window.__painel = (dados) => {
+  D = dados.deals; CONF = dados.conferencia?.ae_ganhos ?? null; DIAG = dados.avisos ?? [];
+  PREENCH = dados.preenchimento ?? null;
+  CHURN12 = dados.churn12 ?? [];
+  // time de CS: a foto vem do bucket, casada pelo nome do arquivo
+  for(const d of CHURN12) if(d.buddy && !FOTO[d.buddy]){
+    const u = fotoDoBucket(d.buddy);
+    if(u) FOTO[d.buddy] = { url:u, pos:"50% 22%" };
+  }
+  RECEB12 = dados.recebimento12 ?? [];
+  PLATAF  = dados.plataformas ?? null;
+  for(const d of CHURN12) if(d.foto?.url && !FOTO[d.v]) FOTO[d.v]=d.foto;
+  // o período veio da própria consulta; os selects mandam no resto
+  el("f-de").value  = el("f-de").value  || dados.periodo.de;
+  el("f-ate").value = el("f-ate").value || dados.periodo.ate;
+  state.de = el("f-de").value; state.ate = el("f-ate").value;
+  state.basedata = el("f-basedata").value || "desfecho";
+  for(const d of D) if(d.foto?.url && !FOTO[d.v]) FOTO[d.v]=d.foto;
+  for(const d of D) if(d.buddy && !FOTO[d.buddy]){
+    const u = fotoDoBucket(d.buddy);
+    if(u) FOTO[d.buddy] = { url:u, pos:"50% 22%" };
+  }
+  fill(el("f-orig"),  D.map(d=>d.orig),  "ICOMM + TF");
+  fill(el("f-vend"),  D.map(d=>d.v),     "Todos os vendedores");
+  fill(el("f-prod"),  D.map(d=>d.p),     "Todos os produtos");
+  fill(el("f-canal"), D.map(d=>d.canal), "Todos os canais");
+  fill(el("f-lead"),  D.map(d=>d.lead),  "Todas as qualificações");
+  el("selo").textContent = "Pipedrive ao vivo · " + new Date(dados.geradoEm).toLocaleTimeString("pt-BR");
+  // Diagnóstico não é conteúdo de dashboard: vai para o console (F12), não para a tela.
+  if(DIAG.length) console.info("%cPainel ICOMM · diagnóstico","font-weight:700",
+    "\n" + DIAG.map(x=>"• "+x.replace(/<[^>]+>/g,"")).join("\n"));
+  render();
+};
+</script>
+
+<script type="module">
+/* ===== carga: Edge Function "live", que consulta o Pipedrive na hora ===== */
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const URL_SB = "https://fsylnexkwfyyaloalrxn.supabase.co";
+const CHAVE  = "sb_publishable_rWlDH3gD2TcPPPw_L2Lc5w_v3cCBblo";
+const FN     = URL_SB + "/functions/v1/live";
+const sb = createClient(URL_SB, CHAVE);
+const $ = id => document.getElementById(id);
+
+// Quem não entra no painel de closers, e por quê. Os negócios continuam
+// existindo no Pipedrive — é só apagar a linha daqui para trazer de volta.
+const FORA = {
+  "Diego Diniz":     "já não está no time",
+  "Lucas Picón":     "já não está no time",
+  "Thiago Pastori":  "já não está no time",
+  "Matheus Cerutti": "coordenador de SDR, não é closer",
+};
+const EX_TIME = new Set(Object.keys(FORA));
+
+const BUCKET = URL_SB + "/storage/v1/object/public/foto-time/";
+BUCKET_FOTOS = BUCKET;   // o bloco de render precisa dele para montar a URL
+// O logo mora no mesmo bucket das fotos. Em vez de adivinhar o nome do arquivo,
+// lista o bucket e pega o primeiro que pareça um logo. Se a listagem não estiver
+// liberada, cai para os nomes mais prováveis; falhando tudo, ficam as iniciais.
+function pintaLogo(url){
+  document.querySelectorAll(".mk").forEach(m => {
+    m.classList.add("temlogo");
+    m.innerHTML = `<img src="${url}" alt="ICOMM">`;
+  });
+}
+function tentaNomes(nomes, i = 0){
+  if(i >= nomes.length){
+    console.info("Logo não encontrado. Nomes testados:", nomes.join(", "),
+      "— salve um arquivo com 'logo' no nome dentro do bucket foto-time.");
+    return;
+  }
+  const img = new Image();
+  img.onload  = () => pintaLogo(img.src);
+  img.onerror = () => tentaNomes(nomes, i + 1);
+  img.src = BUCKET + nomes[i];
+}
+async function acharLogo(){
+  try{
+    const { data, error } = await sb.storage.from("foto-time").list("", { limit: 200 });
+    if(!error && data?.length){
+      ARQUIVOS = data.map(f => f.name).filter(n => /\.(png|jpe?g|webp|gif)$/i.test(n));
+      // a lista chegou depois da tela: redesenha para as fotos entrarem
+      if(D.length) render();
+      const arq = data.find(f => /logo|icomm/i.test(f.name) &&
+                                 /\.(png|jpe?g|svg|webp|gif)$/i.test(f.name));
+      if(arq){ pintaLogo(BUCKET + encodeURIComponent(arq.name)); return; }
+      console.info("Arquivos no bucket foto-time:", data.map(f => f.name).join(", "));
+    }
+  }catch(e){ /* listagem bloqueada: segue para os nomes */ }
+  tentaNomes(["logo-icomm.png","logo-icomm.jpg","logo_icomm.png","logo.png","logo.jpg",
+              "icomm.png","icomm.jpg","logo-icomm.svg","logo.svg","logo-icomm.webp"]);
+}
+const POS = { "Renato Benedetti":"50% 18%", "Lucas Gallera":"50% 20%", "Christopher":"50% 20%" };
+Object.assign(POS_FOTO, POS);
+
+
+// O Pipedrive devolve o nome completo; o painel mostra o nome curto do time.
+const APELIDO = {
+  "Christopher Rodrigues":"Christopher", "Matheus Medeiros Silva":"Matheus Medeiros",
+};
+
+$("fl").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("msg").textContent = "Entrando...";
+  const { error } = await sb.auth.signInWithPassword({
+    email: $("em").value.trim(), password: $("se").value });
+  $("msg").textContent = error ? "E-mail ou senha incorretos." : "";
+  if(!error) entrar();
+});
+$("sair").addEventListener("click", async ()=>{ await sb.auth.signOut(); location.reload(); });
+
+const { data:{ session } } = await sb.auth.getSession();
+if(session) entrar();
+
+async function entrar(){
+  $("login").style.display="none";
+  $("app").style.display="grid";
+  acharLogo();
+  const { data:{ user } } = await sb.auth.getUser();
+  const bruto=(user?.email ?? "").split("@")[0].replace(/[._-]+/g," ").trim();
+  const nome=bruto.split(" ").filter(Boolean).map(p=>p[0].toUpperCase()+p.slice(1)).join(" ")||"Usuário";
+  $("me-nome").textContent=nome;
+  $("me-ini").textContent=nome.split(" ").map(p=>p[0]).slice(0,2).join("").toUpperCase();
+  // primeiro carregamento: mês corrente
+  const h=new Date(), p=n=>String(n).padStart(2,"0");
+  if(!$("f-de").value){
+    $("f-de").value  = `${h.getFullYear()}-${p(h.getMonth()+1)}-01`;
+    $("f-ate").value = `${h.getFullYear()}-${p(h.getMonth()+1)}-${p(h.getDate())}`;
+  }
+  await carregar();
+}
+
+window.__recarregar = carregar;
+
+let carregando = false;
+async function carregar(){
+  if(carregando) return;
+  carregando = true;
+  const b=$("recarregar"); b.disabled=true; b.textContent="Consultando…";
+  $("sub").textContent="consultando o Pipedrive…";
+  try{
+    const de=$("f-de").value, ate=$("f-ate").value;
+    const { data:{ session } } = await sb.auth.getSession();
+    if(!session) throw new Error("Sessão expirada — entre de novo.");
+    const r = await fetch(`${FN}?de=${de}&ate=${ate}`, {
+      headers: { Authorization: "Bearer " + session.access_token, apikey: CHAVE },
+    });
+    const j = await r.json();
+    if(!j.ok) throw new Error(j.erro ?? ("HTTP " + r.status));
+
+    const avisos = [];
+    const fotos = {};
+    for(const d of j.deals) d.v = APELIDO[d.v] ?? d.v;
+
+    const saiuDoTime = j.deals.filter(d => EX_TIME.has(d.v));
+    j.deals = j.deals.filter(d => !EX_TIME.has(d.v));
+
+    for(const d of j.deals){
+      if(!fotos[d.v]){
+        const arq = ARQ_FOTO[d.v];
+        fotos[d.v] = { url: arq ? BUCKET+arq : fotoDoBucket(d.v), pos: POS[d.v] ?? "50% 22%" };
+      }
+      d.foto = fotos[d.v];
+    }
+    const conf = j.conferencia?.ae_ganhos;
+    if(conf){
+      const renomeado = {};
+      for(const [k,v] of Object.entries(conf.por_vendedor)){
+        const nome = APELIDO[k] ?? k;
+        if(EX_TIME.has(nome)) { conf.negocios -= v.negocios; conf.valor -= v.valor; continue; }
+        renomeado[nome] = v;
+      }
+      conf.por_vendedor = renomeado;
+    }
+    if(saiuDoTime.length){
+      const porPessoa = {};
+      for(const d of saiuDoTime) porPessoa[d.v] = (porPessoa[d.v]||0)+1;
+      avisos.push(`Fora do painel: ` +
+        Object.entries(porPessoa).map(([n,q])=>`<b>${n}</b> — ${FORA[n]} (${q} negócio(s))`).join(" · ") +
+        `. Seguem no Pipedrive; só não entram nas contas daqui.`);
+    }
+    const semItem = j.deals.filter(d=>d.s==="won" && !d.precoLista).length;
+    if(semItem) avisos.push(`<b>${semItem}</b> negócio(s) ganho(s) sem item de produto anexado — ` +
+      `sem isso não existe preço de tabela nem desconto. Anexar o produto no negócio resolve.`);
+    avisos.push(`Consulta ao Pipedrive em ${j.ms} ms · ${j.contagem.total} negócios ` +
+      `(${j.contagem.ganhos} ganhos, ${j.contagem.perdidos} perdidos, ${j.contagem.abertos} abertos).`);
+
+    window.__painel({ ...j, avisos });
+  }catch(err){
+    $("sub").textContent = "Erro: " + err.message;
+    $("diag").innerHTML = "• <b>Falha ao consultar:</b> " + err.message +
+      "<br>• Confira se a Edge Function <code>live</code> está publicada e se o secret " +
+      "<code>PIPEDRIVE_API_TOKEN</code> está configurado.";
+  }finally{
+    carregando = false;
+    b.disabled=false; b.textContent="Atualizar";
+  }
+}
+</script>
