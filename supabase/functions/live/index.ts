@@ -88,19 +88,36 @@ const CAMPOS_V2 = [
 // Paginação do v2 que descarta o que não interessa ainda dentro do laço —
 // assim a função nunca segura milhares de negócios na memória de uma vez.
 const truncou = new Set<string>();
+/* Quanto cada varredura leu de fato. Sem isto não dá para distinguir "a conta
+   só tem 29 negócios abertos com Vendedor" de "a paginação parou na página 1 e
+   os outros 90 nunca foram lidos" — os dois casos produzem a mesma tela vazia,
+   e o segundo é bug. Vai inteiro para a resposta. */
+const DIAG_V2: Record<string, {
+  paginas: number; brutos: number; mantidos: number; truncado: boolean;
+}> = {};
+
 async function paginaV2(status: "lost" | "open", extra: Record<string, string>,
-                        manter: (d: any) => boolean, maxPaginas = 14) {
+                        manter: (d: any) => boolean, maxPaginas = 30) {
   const saida: any[] = [];
   let cursor: string | null = null;
+  let paginas = 0, brutos = 0;
   for (let i = 0; i < maxPaginas; i++) {
-    if (i === maxPaginas - 1) truncou.add(status);
     const q = new URLSearchParams({ limit: "500", status, custom_fields: CAMPOS_V2, ...extra });
     if (cursor) q.set("cursor", cursor);
     const r = await pd(`/api/v2/deals?${q}`);
-    for (const d of r.data ?? []) if (manter(d)) saida.push(d);
-    cursor = r.additional_data?.next_cursor ?? null;
-    if (!cursor) { truncou.delete(status); break; }
+    const lote = r.data ?? [];
+    paginas++; brutos += lote.length;
+    for (const d of lote) if (manter(d)) saida.push(d);
+    // O v2 devolve o cursor em additional_data.next_cursor. Aceito também a
+    // forma na raiz: se a API mudar de lugar, o laço parava calado na página 1
+    // e a carteira aberta chegava pela metade sem ninguém perceber.
+    cursor = r.additional_data?.next_cursor ?? r.next_cursor ?? null;
+    if (!cursor) break;
   }
+  // Truncou se saímos do laço com cursor ainda pendente — quer dizer que existe
+  // negócio que nunca foi lido.
+  if (cursor) truncou.add(status);
+  DIAG_V2[status] = { paginas, brutos, mantidos: saida.length, truncado: !!cursor };
   return saida;
 }
 
@@ -660,6 +677,7 @@ Deno.serve(async (req) => {
     if (!PD_TOKEN) throw new Error("Falta o secret PIPEDRIVE_API_TOKEN");
     semPreco.clear();
     truncou.clear();
+    for (const k of Object.keys(DIAG_V2)) delete DIAG_V2[k];
 
     const url = new URL(req.url);
     const hoje = new Date().toISOString().slice(0, 10);
@@ -774,6 +792,9 @@ Deno.serve(async (req) => {
         },
       },
       preenchimento,
+      // O que cada varredura leu de fato — é isto que responde "por que a
+      // carteira aberta veio menor do que deveria".
+      varredura: DIAG_V2,
       contagem: {
         total: deals.length,
         ganhos: deals.filter((d) => d.s === "won").length,

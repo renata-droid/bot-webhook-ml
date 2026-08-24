@@ -354,6 +354,7 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--card-2);padding:1
     <div class="f"><label for="f-ret">Etapas do RET</label>
       <select id="f-ret"><option value="retorno">Retorno Agendado + Realizado</option><option value="followup">+ Follow UP</option></select></div>
     <div class="fcount" id="fcount"></div>
+    <div class="fcount" id="varredura" style="width:100%;margin:0;padding:0"></div>
   </div>
 
 <div class="pg" id="pg-geral">
@@ -2735,6 +2736,19 @@ window.__painel = (dados) => {
   fill(el("f-canal"), D.map(d=>d.canal), "Todos os canais");
   fill(el("f-lead"),  D.map(d=>d.lead),  "Todas as qualificações");
   el("selo").textContent = "Pipedrive ao vivo · " + new Date(dados.geradoEm).toLocaleTimeString("pt-BR");
+  /* Quanto o servidor conseguiu ler de fato. Fica na tela, não no console: foi
+     não enxergar isto que fez a carteira aberta chegar pela metade (29 de ~120)
+     e a página parecer vazia sem ninguém saber por quê. */
+  const V = dados.varredura || {};
+  const N = n => Number(n||0).toLocaleString("pt-BR");
+  el("varredura").innerHTML = Object.keys(V).length
+    ? Object.entries(V).map(([k,x])=>{
+        const rot = k==="open" ? "carteira aberta" : "perdidos";
+        return `<span style="margin-right:16px;color:${x.truncado?"var(--rosa)":"inherit"}">`
+          + `${rot}: ${N(x.brutos)} lidos em ${x.paginas} pág · ${N(x.mantidos)} usados`
+          + (x.truncado ? " · <b>TRUNCADO, faltou negócio</b>" : "") + `</span>`;
+      }).join("")
+    : "";
   // Diagnóstico não é conteúdo de dashboard: vai para o console (F12), não para a tela.
   if(DIAG.length) console.info("%cPainel ICOMM · diagnóstico","font-weight:700",
     "\n" + DIAG.map(x=>"• "+x.replace(/<[^>]+>/g,"")).join("\n"));
