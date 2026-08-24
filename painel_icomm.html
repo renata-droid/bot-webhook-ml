@@ -1302,6 +1302,17 @@ function renderAI(rows, destino="ai-body"){
 let PREENCH = null;
 const hojeISO = (() => { const h=new Date(), p=n=>String(n).padStart(2,"0");
   return `${h.getFullYear()}-${p(h.getMonth()+1)}-${p(h.getDate())}`; })();
+/* O "Até" do topo é a DATA DE REFERÊNCIA: o painel olha a carteira como ela
+   estava naquele dia. Com o Até em hoje, é a foto de agora; puxando para 20/08,
+   é como o funil estava no dia 20.
+
+   Por que a carteira não leva recorte de intervalo: "vencido" é estado
+   acumulado, não evento. Retorno marcado para 19/08 e não feito continua
+   vencido no dia 24 — filtrar [24/08 a 24/08] exigia que o retorno fosse
+   marcado exatamente naquele dia e zerava a tela inteira. Bloco de EVENTO
+   (lastro, retornos por dia, funil) leva o intervalo; bloco de ESTADO
+   (cartões, lista) leva a data de referência. */
+const refISO = () => state.ate || hojeISO;
 const maisDias = (iso,n) => new Date(Date.parse(iso+"T12:00:00Z")+n*86400e3).toISOString().slice(0,10);
 const difDias  = (a,b) => (a&&b) ? Math.round((Date.parse(b+"T12:00:00Z")-Date.parse(a+"T12:00:00Z"))/86400e3) : null;
 const brData   = x => x ? x.split("-").reverse().join("/") : "—";
@@ -1316,14 +1327,15 @@ const foiNoShow    = d => d.noShow || d.et==="No Show";
 function estadoRet(d){
   if(d.s!=="open") return null;
   const ag=d.retAgendado;
-  const rz=d.retRealizado || (d.et==="Retorno Realizado" ? (d.retAgendado||hojeISO) : null);
-  const ns=d.noShow      || (d.et==="No Show"           ? (d.retAgendado||hojeISO) : null);
+  const hoje=refISO();
+  const rz=d.retRealizado || (d.et==="Retorno Realizado" ? (d.retAgendado||hoje) : null);
+  const ns=d.noShow      || (d.et==="No Show"           ? (d.retAgendado||hoje) : null);
   if(ns && ag && ag>ns)                    return "reagendado";
   if(ns && (!ag || ag<=ns))                return "noshow";
   if(rz && (!ag || rz>=ag))                return "realizado";
   if(!ag)                                  return "semdata";
-  if(ag>hojeISO)                           return "futuro";
-  if(ag===hojeISO)                         return "hoje";
+  if(ag>hoje)                              return "futuro";
+  if(ag===hoje)                            return "hoje";
   return "vencido";
 }
 const ROTULO_EST = {
@@ -1341,19 +1353,12 @@ const bolhaEst = e => e ? `<span class="bolha b-${e}">${ROTULO_EST[e]}</span>` :
    Continua ignorando o filtro "Etapas do RET" do topo: Follow UP é o caso mais
    grave (ninguém marcou nada) e não pode sumir da tela por causa de um seletor.
 
-   Qual data decide se o negócio entra no recorte:
-   · tem retorno marcado  -> a data do retorno
-   · não tem data nenhuma -> o dia em que caiu na etapa (hoje menos os dias parado)
-   Sem esse segundo caso, "Sem data" — que é justamente o mais grave — sumiria da
-   tela por não ter data para ser testada. */
+   A carteira NÃO leva recorte de intervalo — quem decide o estado de cada
+   negócio é a data de referência (o "Até"). Ver o comentário do refISO. */
 const ETAPAS_RET_FIXAS = ["Retorno Agendado", "Retorno Realizado", "Follow UP"];
-const dataDoRetorno = d => d.retAgendado || d.retRealizado || d.noShow
-  || (d.dpar != null ? maisDias(hojeISO, -d.dpar) : null);
 function carteiraRet(){
-  return carteira()
-    .filter(d => ETAPAS_RET_FIXAS.includes(d.et) || d.et==="No Show"
-      || d.retAgendado || d.retRealizado || d.noShow)
-    .filter(d => { const x = dataDoRetorno(d); return x && x>=state.de && x<=state.ate; });
+  return carteira().filter(d => ETAPAS_RET_FIXAS.includes(d.et) || d.et==="No Show"
+    || d.retAgendado || d.retRealizado || d.noShow);
 }
 
 /* ---------- aba HOJE ---------- */
@@ -1364,7 +1369,8 @@ function renderAcao(rows){
   // estamos consertando aqui. Amanhã aparece quando o "Até" alcança amanhã.
   const cartoes = [
     ["Vencidos", por("vencido"), "var(--rosa)", "passou da data e ninguém registrou"],
-    ["Hoje", por("hoje"), "var(--ambar)", "acontece hoje"],
+    [refISO()===hojeISO ? "Hoje" : "Em "+brData(refISO()), por("hoje"), "var(--ambar)",
+      refISO()===hojeISO ? "acontece hoje" : "acontece na data de referência"],
     ["Lead não apareceu", por("noshow"), "var(--ambar)", "no-show sem reagendar"],
     ["Sem data", por("semdata"), "var(--faint)", "ninguém marcou nada"],
   ];
@@ -1417,7 +1423,7 @@ function renderLastro(){
 const PESO_EST = {vencido:0, semdata:1, noshow:2, hoje:3, reagendado:4, futuro:5, realizado:6};
 function linhaRet(d){
   const e = estadoRet(d);
-  const atraso = e==="vencido" ? difDias(d.retAgendado, hojeISO) : null;
+  const atraso = e==="vencido" ? difDias(d.retAgendado, refISO()) : null;
   return `<tr><td class="name">${esc(d.t)} ${linkDeal(d)}</td>
     <td><span class="who">${AV(d.v,22)}${esc(d.v)}</span></td>
     <td class="dim" style="min-width:150px">${esc(d.p)}</td>
@@ -1482,7 +1488,7 @@ function renderDias(cr){
 
   if(!ag.length){
     el("ret-dias").innerHTML=`<div class="empty">Nenhum retorno agendado entre
-      ${brData(ini)} e ${brData(fim)}${fim<=hojeISO
+      ${brData(ini)} e ${brData(fim)}${fim<=refISO()
         ? ' — para ver o que ainda vem, estique o <b>Até</b> lá em cima' : ''}</div>`;
     el("t-dias-closer").innerHTML=""; el("dias-sub").textContent="";
     return;
@@ -1510,7 +1516,7 @@ function renderDias(cr){
     const segs=d.partes.filter(p=>p.v>0).map(p=>{ const a=alt(p.v); y-=a;
       return `<rect x="${x(i).toFixed(1)}" y="${y.toFixed(1)}" width="${larg.toFixed(1)}"
         height="${a.toFixed(1)}" fill="${p.c}" rx="3"/>`; }).join("");
-    const hoje = d.dt===hojeISO;
+    const hoje = d.dt===refISO();
     return segs
       + `<text x="${(x(i)+larg/2).toFixed(1)}" y="${(y-5).toFixed(1)}" text-anchor="middle"
           font-size="10" font-weight="700" fill="var(--fg)" font-family="var(--mono)">${d.n}</text>`
@@ -1520,17 +1526,17 @@ function renderDias(cr){
   }).join("");
 
   // a linha de hoje separa o que já era do que ainda vem
-  const iHoje = dias.findIndex(dt=>dt>=hojeISO);
+  const iHoje = dias.findIndex(dt=>dt>=refISO());
   const marcaHoje = iHoje>=0 ? `<line x1="${(x(iHoje)-4).toFixed(1)}" y1="${PT-6}"
     x2="${(x(iHoje)-4).toFixed(1)}" y2="${base}" stroke="var(--lima)" stroke-width="1"
     stroke-dasharray="3 3" opacity=".7"/>` : "";
 
-  const passado = ag.filter(d=>d.retAgendado<hojeISO);
-  const futuro  = ag.filter(d=>d.retAgendado>=hojeISO);
+  const passado = ag.filter(d=>d.retAgendado<refISO());
+  const futuro  = ag.filter(d=>d.retAgendado>=refISO());
   const total = ag.reduce((a,d)=>a+d.val,0);
   el("dias-sub").textContent =
     `${brData(ini)} a ${brData(fim)} · ${passado.length} atrás, ${futuro.length} pela frente`
-    + (fim<=hojeISO ? " · estique o Até para ver os próximos" : "");
+    + (fim<=refISO() ? " · estique o Até para ver os próximos" : "");
 
   el("ret-dias").innerHTML=`
     <div class="legend" style="margin-bottom:10px;gap:16px;flex-wrap:wrap">
@@ -1554,7 +1560,7 @@ function renderDias(cr){
     const cel=t=>{ const a=arr.filter(d=>(d.tmp||null)===t);
       return {n:a.length, v:a.reduce((x,d)=>x+d.val,0)}; };
     return {v, n:arr.length, val:arr.reduce((a,d)=>a+d.val,0),
-      atras:arr.filter(d=>d.retAgendado<hojeISO).length,
+      atras:arr.filter(d=>d.retAgendado<refISO()).length,
       q:cel("Quente"), m:cel("Morno"), f:cel("Frio")};
   }).sort((a,b)=>b.val-a.val || b.n-a.n);
   const cx=(x,cor)=>x.n?`<b style="color:${cor}">${x.n}</b> <span class="dim">${BRL(x.v)}</span>`:'<span class="dim">—</span>';
@@ -1611,7 +1617,7 @@ function renderListaRet(todos){
   const br = x => x ? x.split("-").reverse().join("/") : "";
   el("ret-lista-sub").textContent =
     `${lista.length} de ${todos.length} negócios · ${BRL(lista.reduce((a,d)=>a+d.val,0))}`
-    + ` · ${br(state.de)} a ${br(state.ate)}`
+    + ` · carteira em ${br(refISO())}`
     + (q ? ` · busca "${state.buscaRet.trim()}"` : "");
   el("t-ret-lista").innerHTML = CAB_RET + `<tbody>${lista.map(linhaRet).join("")
     || '<tr><td colspan="12" class="empty">Nada neste recorte</td></tr>'}</tbody>`;
@@ -2613,8 +2619,8 @@ function render(){
     // Uma página só, uma régua só. Desempenho deixou de ser aba e virou o fim
     // desta mesma página — o filtro do topo manda em todos os blocos.
     const cr = carteiraRet();
-    el("sub").textContent =
-      `${cr.length} negócios em retorno · ${br(state.de)} a ${br(state.ate)}`;
+    el("sub").textContent = `${cr.length} negócios em retorno · carteira em `
+      + br(refISO()) + ` · eventos de ${br(state.de)} a ${br(state.ate)}`;
     renderAcao(cr); renderLastro(); renderDias(cr); renderListaRet(cr);
     renderDesempenho(b);
     return;
