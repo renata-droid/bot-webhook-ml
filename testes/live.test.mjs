@@ -72,8 +72,18 @@ const dublê = (u) => {
   if (p.startsWith("/api/v1/deals/") && p.endsWith("/products")) return { data: [] };
   if (p === "/api/v1/deals/timeline")
     return { data: [{ deals: q.get("field_key") === "won_time" ? [ganho] : [] }] };
-  if (p === "/api/v2/deals")
-    return { data: q.get("status") === "open" ? abertos : [], additional_data: {} };
+  if (p === "/api/v2/deals") {
+    if (q.get("status") !== "open") return { data: [], additional_data: {} };
+    const funil = q.get("pipeline_id");
+    // conta grande: a varredura da conta INTEIRA nunca termina — é o que
+    // acontece de verdade com mais de 15 mil abertos. Por funil, termina.
+    if (!funil && CONTA_GRANDE)
+      return { data: [], additional_data: { next_cursor: "tem-mais" } };
+    return {
+      data: funil ? abertos.filter((d) => String(d.pipeline_id) === funil) : abertos,
+      additional_data: {},
+    };
+  }
   if (p === "/api/v1/activities") {
     const ini = q.get("start_date"), fim = q.get("end_date"), soAbertas = q.get("done") === "0";
     return { data: atividades.filter((a) =>
@@ -87,8 +97,11 @@ const origIndex = join(dir, "index.ts");
 writeFileSync(origIndex, execFileSync("git", ["show", "67463bd:supabase/functions/live/index.ts"],
   { cwd: process.cwd(), encoding: "utf8" }));
 
-const A = await roda(empacota(origIndex, "orig"), dublê, { de: DE, ate: ATE });
-const B = await roda(empacota("supabase/functions/live/index.ts", "novo"), dublê, { de: DE, ate: ATE });
+let CONTA_GRANDE = false;
+const bOrig = empacota(origIndex, "orig");
+const bNovo = empacota("supabase/functions/live/index.ts", "novo");
+const A = await roda(bOrig, dublê, { de: DE, ate: ATE });
+const B = await roda(bNovo, dublê, { de: DE, ate: ATE });
 
 let n = 0, falhou = false;
 const ok = (nome, fn) => {
@@ -159,6 +172,26 @@ ok("nada saiu da resposta; só entrou", () => {
   assert.deepEqual(Object.keys(A.json).filter((k) => !(k in B.json)), []);
   assert.deepEqual(soNovos(B.json).sort(), ["retorno_fonte", "varredura"]);
 });
+
+/* ---- o caso da Renata: conta grande, filtro de um dia só ----
+   A carteira mostrava 4 negócios onde havia 53, sempre os mesmos 4. O período
+   longo mascarava: negócio criado dentro do período chega pela rota de
+   "criados" do v1 e a carteira parecia cheia. Num dia só, sobra o que a
+   varredura trouxe — e ela tinha parado no teto. */
+CONTA_GRANDE = true;
+const A2 = await roda(bOrig, dublê, { de: ATE, ate: ATE });
+const B2 = await roda(bNovo, dublê, { de: ATE, ate: ATE });
+const abertosDe = (j) => j.deals.filter((d) => d.s === "open").length;
+
+ok("conta grande + um dia só: a versão de hoje perde a carteira", () =>
+  assert.equal(abertosDe(A2.json), 0));
+
+ok("conta grande + um dia só: a nova traz a carteira inteira", () =>
+  assert.equal(abertosDe(B2.json), abertos.length));
+
+ok("e ela vai buscar funil por funil", () =>
+  assert.ok(B2.chamadas.some((c) => c.includes("pipeline_id=20")),
+    "nenhuma chamada por funil: " + B2.chamadas.filter((c) => c.includes("v2/deals")).join(" | ")));
 
 console.log(`\n${n} conferências` + (falhou ? " — TEM FALHA" : ", todas passando"));
 process.exit(falhou ? 1 : 0);

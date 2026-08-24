@@ -97,7 +97,7 @@ const DIAG_V2: Record<string, {
 }> = {};
 
 async function paginaV2(status: "lost" | "open", extra: Record<string, string>,
-                        manter: (d: any) => boolean, maxPaginas = 30) {
+                        manter: (d: any) => boolean, maxPaginas = 30, rotulo = status) {
   const saida: any[] = [];
   let cursor: string | null = null;
   let paginas = 0, brutos = 0;
@@ -116,8 +116,8 @@ async function paginaV2(status: "lost" | "open", extra: Record<string, string>,
   }
   // Truncou se saímos do laço com cursor ainda pendente — quer dizer que existe
   // negócio que nunca foi lido.
-  if (cursor) truncou.add(status);
-  DIAG_V2[status] = { paginas, brutos, mantidos: saida.length, truncado: !!cursor };
+  if (cursor) truncou.add(rotulo);
+  DIAG_V2[rotulo] = { paginas, brutos, mantidos: saida.length, truncado: !!cursor };
   return saida;
 }
 
@@ -266,11 +266,38 @@ function perdidos(de: string, ate: string) {
   return paginaV2("lost", { updated_since: de + "T00:00:00Z" }, noPeriodo);
 }
 
-// Carteira aberta. Só interessa negócio com "Vendedor" preenchido.
-// NÃO usar updated_since aqui: foi tentado e derrubou a carteira de 124 para 37.
-function abertos() {
+/* Carteira aberta, UM FUNIL DE CADA VEZ.
+   ======================================
+   Só interessa negócio com "Vendedor" preenchido.
+
+   Varrendo a conta inteira de uma vez, os mais de 15 mil abertos estouravam o
+   teto de páginas e a carteira chegava pela metade. Isso ficou escondido por
+   muito tempo porque período longo mascarava: negócio criado dentro do período
+   também chega pela rota de "criados" do v1, e a carteira parecia cheia.
+   Filtrando um dia só, essa rota não traz quase nada e sobrava apenas o que a
+   varredura quebrada tinha trazido — quatro negócios onde havia cinquenta e
+   três, sempre os mesmos quatro.
+
+   O teto é por chamada. Uma chamada por funil, e nenhum funil chega perto dele.
+
+   NÃO usar updated_since aqui: foi tentado e derrubou a carteira de 124 para 37.
+   Aquilo é filtro temporal e some com negócio antigo parado, que é justamente o
+   que a página Retorno precisa mostrar. Funil não é temporal: negócio não muda
+   de funil por ficar velho. */
+async function abertos(m: Meta) {
   const temVendedor = (d: any) => cru(cf(d, CAMPOS.vendedor)) != null;
-  return paginaV2("open", {}, temVendedor);
+  const saida: any[] = [];
+  const vistos = new Set<number>();
+  for (const funil of m.funis.keys()) {
+    const lote = await paginaV2("open", { pipeline_id: String(funil) }, temVendedor,
+                                30, `open:${m.funis.get(funil) ?? funil}`);
+    for (const d of lote) {
+      if (vistos.has(d.id)) continue;
+      vistos.add(d.id);
+      saida.push(d);
+    }
+  }
+  return saida;
 }
 
 // Histórico de churn dos últimos 12 meses, independente do período do topo.
@@ -774,7 +801,7 @@ Deno.serve(async (req) => {
       porData("won_time", de, dias),
       porData("add_time", de, dias),
       perdidos(de, ate),
-      abertos(),
+      abertos(m),
       anotacoes(de, ate),
       historicoChurn(m, ate),
     ]);
