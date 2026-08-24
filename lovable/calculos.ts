@@ -14,9 +14,19 @@
    camada de cima.                                                             */
 
 export type Analise = {
-  nota: number; dur: number | null; cp: number | null; lp: number | null;
-  resumo: string | null; certo: string[]; erro: string[]; cond: string[];
+  nota: number;
+  dur: number | null;          // duração em minutos
+  cp: number | null;           // % do tempo em que o closer falou
+  lp: number | null;           // % do tempo em que o lead falou
+  resumo: string | null;
+  certo: string[]; erro: string[]; cond: string[];
   porque: string | null;
+  /* Os quatro abaixo vinham da Edge Function e o painel antigo ignorava. */
+  valorPitch: number | null;   // valor ofertado NA CALL
+  parc: number | null;         // nº de parcelas do pitch
+  nota_justificativa: string | null;  // por que a IA deu essa nota
+  closer: string | null;       // nome como escrito na análise
+  sdrNota: string | null;
 };
 
 export type Negocio = {
@@ -557,4 +567,118 @@ export function motivosDePerda(noPeriodo: Negocio[], quantos = 3) {
     })
     .filter(x => x.perdas)
     .sort((a, b) => b.perdas - a.perdas);
+}
+
+/* ============================================================================
+   REUNIÕES
+   ============================================================================ */
+
+/* O desconto que interessa é sobre o que o closer OFERTOU NA CALL, não sobre o
+   preço de catálogo: metade dos produtos não está cadastrada em Produtos no
+   Pipedrive, e aí precoLista vem zero e o desconto vira "—". O valor do pitch
+   a IA capturou da própria call. */
+export const descontoDoPitch = (d: Negocio): number | null => {
+  const pitch = d.an?.valorPitch;
+  if (!pitch || pitch <= 0 || d.s !== "won" || !d.val) return null;
+  return 1 - d.val / pitch;
+};
+
+/** Frases que se repetem entre calls diferentes, agrupadas pelo começo. Serve
+    tanto para erro quanto para acerto: o padrão é o que interessa, não a frase
+    isolada de uma call. */
+export function frasesRecorrentes(
+  linhas: string[][], minimo = 2, quantos = 6,
+): Array<{ frase: string; n: number; exemplo: string }> {
+  const m: Record<string, { n: number; ex: string }> = {};
+  linhas.forEach(arr => (arr || []).forEach(e => {
+    const k = e.split(/[:.]/)[0].trim().slice(0, 60);
+    if (k.length < 6) return;
+    m[k] = m[k] || { n: 0, ex: e };
+    m[k].n++;
+  }));
+  return Object.entries(m)
+    .filter(([, v]) => v.n >= minimo)
+    .sort((a, b) => b[1].n - a[1].n)
+    .slice(0, quantos)
+    .map(([frase, v]) => ({ frase, n: v.n, exemplo: v.ex }));
+}
+
+/** Score da call por produto — pedido do head. Diz qual produto o time sabe
+    vender e qual ele apanha para explicar. */
+export function scorePorProduto(rows: Negocio[]) {
+  const comAn = rows.filter(d => d.an);
+  return [...new Set(comAn.map(d => d.p))].map(p => {
+    const r = comAn.filter(d => d.p === p);
+    const notas = r.map(d => (d.an as Analise).nota);
+    const won = r.filter(d => d.s === "won");
+    const lost = r.filter(d => d.s === "lost");
+    const fech = won.length + lost.length;
+    const cf = r.filter(d => (d.an as Analise).cp != null);
+    const descs = r.map(descontoDoPitch).filter((x): x is number => x != null);
+    return {
+      p, n: r.length,
+      media: notas.reduce((a, b) => a + b, 0) / notas.length,
+      pior: Math.min(...notas), melhor: Math.max(...notas),
+      won: won.length, lost: lost.length,
+      conv: fech ? won.length / fech : null,
+      receita: won.reduce((a, d) => a + d.val, 0),
+      fala: cf.length ? cf.reduce((a, d) => a + ((d.an as Analise).cp as number), 0) / cf.length : null,
+      desconto: descs.length ? descs.reduce((a, b) => a + b, 0) / descs.length : null,
+    };
+  }).sort((a, b) => a.media - b.media);   // o pior primeiro: é onde se age
+}
+
+/* Resumo por closer — pedido da proprietária, para não ler call a call.
+   NÃO é texto gerado: é o que as próprias análises já disseram, agrupado. Cada
+   linha aqui é rastreável até a call que a originou, e isso é melhor do que
+   prosa nova, que ninguém consegue conferir. */
+export function resumoPorCloser(rows: Negocio[]) {
+  const comAn = rows.filter(d => d.an);
+  return [...new Set(comAn.map(d => d.v))].map(v => {
+    const r = comAn.filter(d => d.v === v);
+    const todas = rows.filter(d => d.v === v);
+    const an = r.map(d => d.an as Analise);
+    const notas = an.map(a => a.nota);
+    const cf = an.filter(a => a.cp != null);
+    const dur = an.filter(a => a.dur);
+    const won = r.filter(d => d.s === "won");
+    const lost = r.filter(d => d.s === "lost");
+    const fech = won.length + lost.length;
+    const descs = r.map(descontoDoPitch).filter((x): x is number => x != null);
+
+    /* objeções que ele mais enfrenta, e quanto contorna. Só as ouvidas NA
+       REUNIÃO: a que vem do motivo da perda está, por definição, em negócio
+       perdido, e daria 0% de contorno para todo mundo. */
+    const objm: Record<string, { n: number; won: number }> = {};
+    r.forEach(d => ((d.obj as Array<{ nome: string; origem: string }>) || [])
+      .filter(o => o.origem === "call")
+      .forEach(o => {
+        objm[o.nome] = objm[o.nome] || { n: 0, won: 0 };
+        objm[o.nome].n++;
+        if (d.s === "won") objm[o.nome].won++;
+      }));
+
+    return {
+      v, calls: r.length, negocios: todas.length,
+      media: notas.reduce((a, b) => a + b, 0) / notas.length,
+      pior: Math.min(...notas), melhor: Math.max(...notas),
+      fala: cf.length ? cf.reduce((a, x) => a + (x.cp as number), 0) / cf.length : null,
+      monologos: cf.filter(a => (a.cp as number) >= 75).length,
+      duracao: dur.length ? dur.reduce((a, x) => a + (x.dur as number), 0) / dur.length : null,
+      won: won.length, lost: lost.length,
+      conv: fech ? won.length / fech : null,
+      receita: won.reduce((a, d) => a + d.val, 0),
+      desconto: descs.length ? descs.reduce((a, b) => a + b, 0) / descs.length : null,
+      parcelaMedia: (() => {
+        const ps = an.map(a => a.parc).filter((x): x is number => !!x);
+        return ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : null;
+      })(),
+      /* mínimo 2: uma frase que apareceu numa call só é anedota, não padrão */
+      erros: frasesRecorrentes(an.map(a => a.erro), 2, 3),
+      acertos: frasesRecorrentes(an.map(a => a.certo), 2, 3),
+      objecoes: Object.entries(objm)
+        .sort((a, b) => b[1].n - a[1].n).slice(0, 3)
+        .map(([nome, x]) => ({ nome, n: x.n, contorno: x.n ? x.won / x.n : 0 })),
+    };
+  }).sort((a, b) => b.media - a.media);
 }
