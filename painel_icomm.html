@@ -349,12 +349,7 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--card-2);padding:1
     <div class="f"><label for="f-prod">Produto</label><select id="f-prod"></select></div>
     <div class="f"><label for="f-canal">Canal</label><select id="f-canal"></select></div>
     <div class="f"><label for="f-lead">Qualificação</label><select id="f-lead"></select></div>
-    <div class="f"><label for="f-temp">Temperatura</label>
-      <select id="f-temp"><option value="">Todas</option><option>Quente</option><option>Morno</option><option>Frio</option></select></div>
-    <div class="f"><label for="f-ret">Etapas do RET</label>
-      <select id="f-ret"><option value="retorno">Retorno Agendado + Realizado</option><option value="followup">+ Follow UP</option></select></div>
     <div class="fcount" id="fcount"></div>
-    <div class="fcount" id="varredura" style="width:100%;margin:0;padding:0"></div>
   </div>
 
 <div class="pg" id="pg-geral">
@@ -393,6 +388,12 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--card-2);padding:1
 </div><!-- /pg-geral -->
 
 <div class="pg" id="pg-retorno" hidden>
+  <div class="abas" id="abas-ret" role="tablist">
+    <button class="aba on" data-aba="carteira" role="tab">Carteira</button>
+    <button class="aba" data-aba="funil" role="tab">Funil do retorno</button>
+  </div>
+
+  <div class="tab" id="tab-carteira">
   <div class="grid g4 sec" id="ret-acao"></div>
 
     <section class="card pad0 sec">
@@ -420,8 +421,9 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--card-2);padding:1
       <div class="scroll"><table id="t-ret-lista"></table></div>
     </section>
 
-    <div class="ch" style="margin-top:26px"><h2>Desempenho</h2>
-      <span class="sub">mesmo período do topo · da reunião até a venda</span></div>
+  </div>
+
+  <div class="tab" id="tab-funil" hidden>
     <div class="grid g5 sec" id="des-funil"></div>
 
     <section class="card pad0 sec">
@@ -441,6 +443,7 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--card-2);padding:1
           porque ele não existe como opção do campo Canal</span></div>
       <div class="scroll"><table id="t-corte-plataforma"></table></div>
     </section>
+  </div>
 </div>
 <div class="pg" id="pg-churn" hidden>
   <div class="ch"><h2>Visão de churn</h2>
@@ -641,7 +644,7 @@ let D = [], CONF = null, DIAG = [];
 const FOTO = {};
 const state = {de:"", ate:"", basedata:"desfecho", orig:"", vend:"", prod:"",
                canal:"", lead:"", temp:"", ret:"retorno", kpi:"",
-               pg:"geral",
+               pg:"geral", aba:"carteira",
                busca:"", an:"", cba:"cancelou", est:"", buscaRet:""};
 const abertosNo = new Set();
 
@@ -2617,6 +2620,12 @@ const PAGINAS = {
   closers:  {t:"Closers"},
   reunioes: {t:"Reuniões"},
 };
+function trocaAba(aba){
+  state.aba = aba;
+  document.querySelectorAll("#abas-ret .aba").forEach(b=>b.classList.toggle("on", b.dataset.aba===aba));
+  ["carteira","funil"].forEach(a=>el("tab-"+a).hidden = a!==aba);
+  render();
+}
 function irPara(pg){
   state.pg = PAGINAS[pg] ? pg : "geral";
   document.querySelectorAll(".pg").forEach(x=>x.hidden = x.id !== "pg-"+state.pg);
@@ -2646,10 +2655,19 @@ function render(){
     // Uma página só, uma régua só. Desempenho deixou de ser aba e virou o fim
     // desta mesma página — o filtro do topo manda em todos os blocos.
     const cr = carteiraRet();
-    el("sub").textContent = `${cr.length} negócios em retorno · carteira em `
-      + br(refISO()) + ` · eventos de ${br(state.de)} a ${br(state.ate)}`;
-    renderAcao(cr); renderLastro(); renderDias(cr); renderListaRet(cr);
-    renderDesempenho(b);
+    if(state.aba==="funil"){
+      el("sub").textContent = `reuniões de ${br(state.de)} a ${br(state.ate)}`;
+      // Mesma fonte do Lastro: TODOS os negócios com Dia da Reunião no período.
+      // Antes vinha de base(), que já é recortado por data de desfecho — o funil
+      // exigia que o negócio tivesse sido fechado E a reunião acontecido dentro
+      // da mesma janela, e quase nada satisfaz as duas. Era por isso que dava
+      // zero reuniões com o Lastro logo acima mostrando seis.
+      renderDesempenho(D.filter(filtrosComuns));
+    } else {
+      el("sub").textContent = `${cr.length} negócios em retorno · carteira em `
+        + br(refISO()) + ` · eventos de ${br(state.de)} a ${br(state.ate)}`;
+      renderAcao(cr); renderLastro(); renderDias(cr); renderListaRet(cr);
+    }
     return;
   }
   const br2=x=>x?x.split("-").reverse().join("/"):"";
@@ -2698,7 +2716,7 @@ function render(){
     "Hoje existe o resumo e a tabela de objeções.");
 }
 
-["de","ate","basedata","orig","vend","prod","canal","lead","temp","ret"].forEach(k=>{
+["de","ate","basedata","orig","vend","prod","canal","lead"].forEach(k=>{
   el("f-"+k).addEventListener("change", e=>{
     state[k]=e.target.value; state.kpi="";
     // mexer no período muda o que o Pipedrive precisa devolver
@@ -2711,6 +2729,9 @@ el("theme").addEventListener("click",()=>{
   document.documentElement.setAttribute("data-theme",cur==="light"?"dark":"light");
 });
 el("recarregar").addEventListener("click",()=>{ if(window.__recarregar) window.__recarregar(); });
+el("abas-ret").addEventListener("click", e=>{
+  const b = e.target.closest(".aba"); if(b) trocaAba(b.dataset.aba);
+});
 el("nav").addEventListener("click", e=>{
   const a = e.target.closest("a[data-pg]"); if(!a) return;
   e.preventDefault(); irPara(a.dataset.pg);
@@ -2757,19 +2778,6 @@ window.__painel = (dados) => {
   fill(el("f-canal"), D.map(d=>d.canal), "Todos os canais");
   fill(el("f-lead"),  D.map(d=>d.lead),  "Todas as qualificações");
   el("selo").textContent = "Pipedrive ao vivo · " + new Date(dados.geradoEm).toLocaleTimeString("pt-BR");
-  /* Quanto o servidor conseguiu ler de fato. Fica na tela, não no console: foi
-     não enxergar isto que fez a carteira aberta chegar pela metade (29 de ~120)
-     e a página parecer vazia sem ninguém saber por quê. */
-  const V = dados.varredura || {};
-  const N = n => Number(n||0).toLocaleString("pt-BR");
-  el("varredura").innerHTML = Object.keys(V).length
-    ? Object.entries(V).map(([k,x])=>{
-        const rot = k==="open" ? "carteira aberta" : "perdidos";
-        return `<span style="margin-right:16px;color:${x.truncado?"var(--rosa)":"inherit"}">`
-          + `${rot}: ${N(x.brutos)} lidos em ${x.paginas} pág · ${N(x.mantidos)} usados`
-          + (x.truncado ? " · <b>TRUNCADO, faltou negócio</b>" : "") + `</span>`;
-      }).join("")
-    : "";
   // Diagnóstico não é conteúdo de dashboard: vai para o console (F12), não para a tela.
   if(DIAG.length) console.info("%cPainel ICOMM · diagnóstico","font-weight:700",
     "\n" + DIAG.map(x=>"• "+x.replace(/<[^>]+>/g,"")).join("\n"));
