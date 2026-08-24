@@ -430,3 +430,131 @@ export function churnPorMes(churn12: Negocio[], f: Filtros) {
     pior: [...dados].sort((a, b) => b.n - a.n)[0] ?? null,
   };
 }
+
+/* ============================================================================
+   CLOSERS
+   ============================================================================ */
+
+/** Faixa da nota da call, no critério ICOMM/TF. */
+export const faixa = (n: number | null): string | null =>
+  n == null ? null : n >= 8 ? "forte" : n >= 6.5 ? "boa" : n >= 5 ? "mediana" : "grave";
+
+/** Negócio que entra no forecast: aberto com retorno marcado ou parado em etapa de RET. */
+export const noFcst = (d: Negocio, f: Filtros): boolean =>
+  d.s === "open" && !!(d.retAgendado || ETAPAS_RET(f).includes(d.et));
+
+/** Venda que passou por retorno em algum momento. */
+export const veioDeRet = (d: Negocio): boolean =>
+  !!(d.retAgendado || d.retRealizado || (d.nret ?? 0) > 0);
+
+export function perfilCloser(rows: Negocio[], v: string) {
+  const r = rows.filter(d => d.v === v);
+  const won = r.filter(d => d.s === "won");
+  const lost = r.filter(d => d.s === "lost");
+  const churn = r.filter(d => d.churn);
+  const receita = won.reduce((a, d) => a + d.val, 0);
+  const ciclos = won.map(d => difDias(d.dCriacao, d.dGanho))
+                    .filter((x): x is number => x != null && x >= 0);
+  const comLista = won.filter(d => d.precoLista > 0);
+  const lista = comLista.reduce((a, d) => a + d.precoLista, 0);
+  const praticado = comLista.reduce((a, d) => a + d.val, 0);
+  const notas = r.filter(d => d.an).map(d => (d.an as Analise).nota);
+  return {
+    v, r, won, lost, churn, receita,
+    opp: r.length,
+    conv: r.length ? won.length / r.length : 0,
+    net: r.length ? (won.length - churn.length) / r.length : 0,
+    ticket: won.length ? receita / won.length : 0,
+    ciclo: ciclos.length ? ciclos.reduce((a, b) => a + b, 0) / ciclos.length : null,
+    desconto: lista ? 1 - praticado / lista : null,
+    score: notas.length ? notas.reduce((a, b) => a + b, 0) / notas.length : null,
+    nNotas: notas.length,
+  };
+}
+
+/** Os números do time, no topo da página. */
+export function resumoTime(noPeriodo: Negocio[], f: Filtros) {
+  const perfis = [...new Set(noPeriodo.map(d => d.v))].map(v => perfilCloser(noPeriodo, v));
+  const won = noPeriodo.filter(d => d.s === "won");
+  const churn = noPeriodo.filter(d => d.churn);
+  const receita = won.reduce((a, d) => a + d.val, 0);
+  const ciclos = perfis.map(p => p.ciclo).filter((x): x is number => x != null);
+  return {
+    perfis,
+    opp: noPeriodo.length, won: won.length, churn: churn.length, receita,
+    conv: noPeriodo.length ? won.length / noPeriodo.length : 0,
+    net: noPeriodo.length ? (won.length - churn.length) / noPeriodo.length : 0,
+    ticket: won.length ? receita / won.length : 0,
+    ciclo: ciclos.length ? ciclos.reduce((a, b) => a + b, 0) / ciclos.length : null,
+  };
+}
+
+/* Vendedor › Produto › Lead, ordenado por RECEITA em cada nível — quem vendeu
+   mais fica em cima. Empate em zero desempata por volume de oportunidades e
+   depois por nome, para a ordem não dançar entre uma carga e outra. */
+function porReceita<T>(lista: Negocio[], chave: (d: Negocio) => string, f: Filtros) {
+  return [...new Set(lista.map(chave))]
+    .map(k => {
+      const r = lista.filter(d => chave(d) === k);
+      const a = agg(r, f);
+      return { k, r, a, receita: a.receita, opp: a.opp };
+    })
+    .sort((x, y) => y.receita - x.receita || y.opp - x.opp
+                 || String(x.k).localeCompare(String(y.k), "pt-BR"));
+}
+
+export function hierarquia(noPeriodo: Negocio[], f: Filtros) {
+  return porReceita(noPeriodo, d => d.v, f).map(v => ({
+    ...v,
+    produtos: porReceita(v.r, d => d.p, f).map(p => ({
+      ...p,
+      negocios: [...p.r].sort((a, b) => b.val - a.val),
+    })),
+  }));
+}
+
+/** Nos níveis agregados, o topo da distribuição de qualificação (ex.: B 5 · A 3). */
+export function mixLead(rows: Negocio[]) {
+  const c: Record<string, number> = {};
+  rows.forEach(d => { if (d.lead) c[d.lead] = (c[d.lead] || 0) + 1; });
+  return Object.entries(c).sort((x, y) => y[1] - x[1]).slice(0, 2)
+    .map(([lead, n]) => ({ lead, n }));
+}
+
+/** Busca e filtro de nota da tabela de negócios. Valem só ali — os filtros do
+    topo continuam mandando no resto da página. */
+export function filtraDeals(
+  rows: Negocio[], busca: string, an: "" | "com" | "sem" | "8" | "65" | "5",
+) {
+  const q = busca.trim().toLowerCase();
+  const campos = (d: Negocio) =>
+    [d.t, d.v, d.p, d.et, d.canal, d.lead, d.sdr, d.orig, String(d.id)]
+      .filter(Boolean).join(" ").toLowerCase();
+  return rows.filter(d => {
+    if (q && !campos(d).includes(q)) return false;
+    const n = d.an?.nota;
+    if (an === "com" && !d.an) return false;
+    if (an === "sem" && d.an) return false;
+    if (an === "8" && !(n != null && n >= 8)) return false;
+    if (an === "65" && !(n != null && n >= 6.5 && n < 8)) return false;
+    if (an === "5" && !(n != null && n < 6.5)) return false;
+    return true;
+  });
+}
+
+/** Motivos de perda mais frequentes por closer — para achar padrão, não culpado. */
+export function motivosDePerda(noPeriodo: Negocio[], quantos = 3) {
+  return [...new Set(noPeriodo.map(d => d.v))]
+    .map(v => {
+      const lost = noPeriodo.filter(d => d.v === v && d.s === "lost");
+      const m: Record<string, number> = {};
+      lost.forEach(d => { const k = (d.lm as string) || "Sem motivo"; m[k] = (m[k] || 0) + 1; });
+      return {
+        v, perdas: lost.length,
+        top: Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, quantos)
+          .map(([motivo, n]) => ({ motivo, n })),
+      };
+    })
+    .filter(x => x.perdas)
+    .sort((a, b) => b.perdas - a.perdas);
+}
