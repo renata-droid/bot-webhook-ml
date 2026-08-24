@@ -1362,10 +1362,18 @@ const bolhaEst = e => e ? `<span class="bolha b-${e}">${ROTULO_EST[e]}</span>` :
 
    A carteira NÃO leva recorte de intervalo — quem decide o estado de cada
    negócio é a data de referência (o "Até"). Ver o comentário do refISO. */
-const ETAPAS_RET_FIXAS = ["Retorno Agendado", "Retorno Realizado", "Follow UP"];
+/* A ETAPA manda. Antes bastava ter "Data Retorno Agendado" preenchida para o
+   negócio entrar aqui, esteja ele onde estivesse no funil — e o campo não é
+   limpo quando o negócio avança. Resultado: um negócio já em Link Enviado, com
+   o retorno feito e a proposta enviada, aparecia como retorno pendente e ainda
+   contava como atrasado. A tela dizia 9 onde o Pipedrive mostrava 8.
+
+   Custo desta escolha, para quem for mexer aqui: retorno marcado num negócio
+   parado em "Proposta Enviada" não aparece nesta página. Foi decidido assim —
+   o painel tem que bater com o kanban. */
+const ETAPAS_RET_FIXAS = ["Retorno Agendado", "Retorno Realizado", "Follow UP", "No Show"];
 function carteiraRet(){
-  return carteira().filter(d => ETAPAS_RET_FIXAS.includes(d.et) || d.et==="No Show"
-    || d.retAgendado || d.retRealizado || d.noShow);
+  return carteira().filter(d => ETAPAS_RET_FIXAS.includes(d.et));
 }
 
 /* ---------- aba HOJE ---------- */
@@ -1573,7 +1581,9 @@ function renderDias(cr){
     const cel=t=>{ const a=arr.filter(d=>(d.tmp||null)===t);
       return {n:a.length, v:a.reduce((x,d)=>x+d.val,0)}; };
     return {v, arr, n:arr.length, val:arr.reduce((a,d)=>a+d.val,0),
-      atras:arr.filter(d=>d.retAgendado<refISO()).length,
+      // atrasado é o estado "vencido", não "data no passado": retorno já realizado
+      // tem data velha e não deve o número a ninguém
+      atras:arr.filter(d=>estadoRet(d)==="vencido").length,
       q:cel("Quente"), m:cel("Morno"), f:cel("Frio")};
   }).sort((a,b)=>b.val-a.val || b.n-a.n);
   const cx=(x,cor)=>x.n?`<b style="color:${cor}">${x.n}</b> <span class="dim">${BRL(x.v)}</span>`:'<span class="dim">—</span>';
@@ -1604,7 +1614,7 @@ function renderDias(cr){
         <td class="n">${ag.filter(d=>d.tmp==="Quente").length}</td>
         <td class="n">${ag.filter(d=>d.tmp==="Morno").length}</td>
         <td class="n">${ag.filter(d=>d.tmp==="Frio").length}</td>
-        <td class="n">${passado.length}</td>
+        <td class="n">${ag.filter(d=>estadoRet(d)==="vencido").length}</td>
         <td class="n">${ag.length}</td><td class="n">${BRL(total)}</td></tr></tbody>`;
   ligaSetasDia();
 }
@@ -2567,8 +2577,7 @@ function renderPerdas(rows, id){
 }
 
 function renderAtencao(rows, cart){
-  const cr = cart.filter(d => ETAPAS_RET_FIXAS.includes(d.et) || d.et==="No Show"
-    || d.retAgendado || d.retRealizado || d.noShow);
+  const cr = cart.filter(d => ETAPAS_RET_FIXAS.includes(d.et));
   const vencidos = cr.filter(d=>estadoRet(d)==="vencido");
   const semData  = cr.filter(d=>estadoRet(d)==="semdata");
   const churn    = rows.filter(d=>d.churn);

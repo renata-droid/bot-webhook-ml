@@ -39,6 +39,11 @@ for (let i=0;i<6;i++)  deals.push(mk({ retAgendado:H, diaReuniao:H }));        /
 for (let i=0;i<4;i++)  deals.push(mk({ noShow:dd(-2), et:"No Show" }));        // no-show
 deals.push(mk({ et:"Follow UP" }));                                           // sem data
 for (let i=0;i<5;i++)  deals.push(mk({ retAgendado:dd(1+i) }));                // agendados
+// o caso que a Renata pegou no Pipedrive: negócio que JÁ passou das etapas de
+// retorno mas continua com "Data Retorno Agendado" preenchida, porque ninguém
+// limpa o campo quando o negócio avança. Não pode aparecer na página Retorno.
+deals.push(mk({ id:39001, t:"Passou de fase", et:"Link Enviado", retAgendado:dd(-4) }));
+deals.push(mk({ id:39002, t:"Proposta com retorno", et:"Proposta Enviada", retAgendado:dd(2) }));
 for (let i=0;i<9;i++)  deals.push(mk({                                        // ganhos
   s:"won", dGanho:dd(-i-1), dDesfecho:dd(-i-1), et:"Ganho", valPago:15997,
   diaReuniao:dd(-i-3), retAgendado:dd(-i-2), retRealizado:dd(-i-1),

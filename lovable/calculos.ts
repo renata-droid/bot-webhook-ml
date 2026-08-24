@@ -753,15 +753,24 @@ export function salPorCloser(rows: Negocio[]) {
 /** A data de onde se olha o funil. Não é janela: é o dia em que a foto foi tirada. */
 export const refISO = (f: Filtros): string => f.ate;
 
-/* Etapas que contam como retorno mesmo sem nenhuma data preenchida. Ignoram de
-   propósito o filtro "ret" do topo: Follow UP é o caso mais grave (ninguém
-   marcou nada) e não pode sumir da tela por causa de um seletor. */
-export const ETAPAS_RET_FIXAS = ["Retorno Agendado", "Retorno Realizado", "Follow UP"];
+/* A ETAPA manda, e só ela. Ignoram de propósito o filtro "ret" do topo: Follow
+   UP é o caso mais grave (ninguém marcou nada) e não pode sumir da tela por
+   causa de um seletor.
+
+   Antes bastava ter "Data Retorno Agendado" preenchida para o negócio entrar
+   aqui, esteja ele onde estivesse no funil. O campo não é limpo quando o
+   negócio avança, então um negócio já em Link Enviado — retorno feito, proposta
+   enviada — aparecia como retorno pendente e ainda contava como atrasado. A
+   tela dizia 9 onde o kanban do Pipedrive mostrava 8.
+
+   Custo desta escolha: retorno marcado num negócio parado em "Proposta Enviada"
+   não aparece nesta página. Foi decidido assim — o painel tem que bater com o
+   kanban, e é o kanban que o time olha o dia inteiro. */
+export const ETAPAS_RET_FIXAS =
+  ["Retorno Agendado", "Retorno Realizado", "Follow UP", "No Show"];
 
 export const carteiraRet = (deals: Negocio[], f: Filtros): Negocio[] =>
-  carteira(deals, f).filter(d =>
-    ETAPAS_RET_FIXAS.includes(d.et) || d.et === "No Show" ||
-    d.retAgendado || d.retRealizado || d.noShow);
+  carteira(deals, f).filter(d => ETAPAS_RET_FIXAS.includes(d.et));
 
 /* Só 7% preenchem "Data Retorno Realizado" e 2% "Data NoShow" — mas a etapa do
    funil é movida. Então a etapa vale como registro quando a data falta. */
@@ -896,7 +905,10 @@ export function retornosPorDia(cr: Negocio[], f: Filtros) {
     };
     return {
       v, deals: arr, n: arr.length, val: arr.reduce((a, d) => a + d.val, 0),
-      atras: arr.filter(d => (d.retAgendado as string) < refISO(f)).length,
+      /* Atrasado é o ESTADO "vencido", não "data no passado". Retorno já
+         realizado carrega data velha e não deve o número a ninguém — era isso
+         que inflava a coluna que vai para a reunião de gestão. */
+      atras: arr.filter(d => estadoRet(d, f) === "vencido").length,
       q: cel("Quente"), m: cel("Morno"), f: cel("Frio"),
     };
   }).sort((a, b) => b.val - a.val || b.n - a.n);
@@ -904,6 +916,11 @@ export function retornosPorDia(cr: Negocio[], f: Filtros) {
   return {
     vazio: false as const, ag, depois, dias, porDia, porCloser, passado, futuro,
     total: ag.reduce((a, d) => a + d.val, 0),
+    /* Para a linha de Total da tabela por closer. Não é `passado.length`:
+       aquele é posicional (o que ficou à esquerda da linha de referência no
+       gráfico), este é o estado. Os dois divergem, e é a coluna "Atrasados"
+       que precisa do segundo. */
+    atrasados: ag.filter(d => estadoRet(d, f) === "vencido").length,
     legenda: TEMPS_RET.map(t => ({ t, n: ag.filter(d => (d.tmp || null) === t).length })),
   };
 }

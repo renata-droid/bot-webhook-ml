@@ -62,7 +62,7 @@ cmp("retornos por dia: atrás / na janela / depois",
 const totalTela = await aba.$$eval("#t-dias-closer tr.total td", els => els.map(e => e.textContent.trim()));
 cmp("retornos por dia: linha de total (quente/morno/frio/atrasados/retornos)",
   totalTela.slice(1, 6).map(Number),
-  [dias.legenda[0].n, dias.legenda[1].n, dias.legenda[2].n, dias.passado.length, dias.ag.length]);
+  [dias.legenda[0].n, dias.legenda[1].n, dias.legenda[2].n, dias.atrasados, dias.ag.length]);
 
 cmp("retornos por dia: closers na tabela",
   await aba.$$eval("#t-dias-closer tbody tr:not(.total):not(.lvl3) td.name", e => e.map(x => x.textContent.trim().replace(/^[▸▾]/, ""))),
@@ -73,6 +73,14 @@ cmp("lista: chips (rótulo e contagem)",
   await aba.$$eval("#ret-chips .chip", els => els.map(e =>
     [e.textContent.trim().replace(/\s+/g, " ").replace(/ R\$.*/, "").replace(/ (\d+)$/, ""), Number(e.querySelector("b").textContent)])),
   lista.chips.map(c => [c.rotulo, c.n]));
+
+/* A etapa manda: negócio que já saiu das etapas de retorno não aparece aqui,
+   mesmo com "Data Retorno Agendado" preenchida. Foi o que a Renata pegou
+   conferindo contra o kanban — a tela dizia 9 onde o Pipedrive mostrava 8. */
+cmp("etapa manda: negócio fora das etapas de retorno não entra na carteira",
+  [], cr.filter(d => ["Link Enviado", "Proposta Enviada"].includes(d.et)).map(d => d.t));
+cmp("etapa manda: nem no gráfico de retornos por dia",
+  [], N.retornosPorDia(cr, f).ag.filter(d => d.id === 39001 || d.id === 39002).map(d => d.t));
 
 /* ---------- aba Lastro ---------- */
 await aba.click('#abas-ret .aba[data-aba="lastro"]');
