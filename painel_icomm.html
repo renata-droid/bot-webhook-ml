@@ -1487,9 +1487,10 @@ function renderDias(cr){
   const ag = cr.filter(d => d.retAgendado && d.retAgendado>=ini && d.retAgendado<=fim);
 
   if(!ag.length){
+    const depois = cr.filter(d => d.retAgendado && d.retAgendado>fim).length;
     el("ret-dias").innerHTML=`<div class="empty">Nenhum retorno agendado entre
-      ${brData(ini)} e ${brData(fim)}${fim<=refISO()
-        ? ' — para ver o que ainda vem, estique o <b>Até</b> lá em cima' : ''}</div>`;
+      ${brData(ini)} e ${brData(fim)}${depois
+        ? ` — há <b>${depois}</b> marcado(s) depois de ${brData(fim)}; estique o <b>Até</b> para vê-los` : ''}</div>`;
     el("t-dias-closer").innerHTML=""; el("dias-sub").textContent="";
     return;
   }
@@ -1534,9 +1535,13 @@ function renderDias(cr){
   const passado = ag.filter(d=>d.retAgendado<refISO());
   const futuro  = ag.filter(d=>d.retAgendado>=refISO());
   const total = ag.reduce((a,d)=>a+d.val,0);
+  // Em vez de mandar esticar o filtro, diz quantos ficaram de fora — aí a
+  // pessoa decide se vale esticar. Nagging não é informação.
+  const depois = cr.filter(d => d.retAgendado && d.retAgendado>fim).length;
   el("dias-sub").textContent =
-    `${brData(ini)} a ${brData(fim)} · ${passado.length} atrás, ${futuro.length} pela frente`
-    + (fim<=refISO() ? " · estique o Até para ver os próximos" : "");
+    (ini===fim ? brData(ini) : `${brData(ini)} a ${brData(fim)}`)
+    + ` · ${passado.length} atrás, ${futuro.length} na janela`
+    + (depois ? ` · ${depois} depois de ${brData(fim)}` : "");
 
   el("ret-dias").innerHTML=`
     <div class="legend" style="margin-bottom:10px;gap:16px;flex-wrap:wrap">
