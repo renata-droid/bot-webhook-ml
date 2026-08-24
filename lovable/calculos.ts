@@ -48,7 +48,14 @@ export type Negocio = {
   dDesfecho: string | null;
   dpar: number | null;       // dias parado na etapa
   nret: number | null;       // nº de retornos
+  /* QUANDO O RETORNO É — não é "o que está escrito no campo".
+     Quando o negócio está aberto e tem atividade em aberto na agenda, a Edge
+     Function põe aqui a data DELA. O campo "Data Retorno Agendado" é uma cópia
+     que envelhece: o closer remarca movendo a atividade e não volta no campo. */
   retAgendado: string | null;
+  retCampo?: string | null;                    // o valor cru do campo, para medir a diferença
+  retFonte?: "atividade" | "campo" | null;     // de onde veio o retAgendado acima
+  retAssunto?: string | null;                  // o assunto da atividade, quando veio dela
   retRealizado: string | null;
   noShow: string | null;
   diaReuniao: string | null;

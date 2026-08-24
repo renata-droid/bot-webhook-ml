@@ -68,3 +68,30 @@ Ela consulta o Pipedrive na hora. Não grava nada. **Não precisa mexer nela.**
   Pipedrive. Não calcule desconto sem checar.
 - **A carteira aberta é a conta inteira**, não só o comercial. Já vem filtrada
   por quem tem "Vendedor" preenchido.
+
+## `retAgendado` — leia isto antes de usar
+
+`retAgendado` significa **quando o retorno é**, e não "o que está escrito no
+campo Data Retorno Agendado".
+
+Para negócio **aberto**, se existe atividade em aberto na agenda do Pipedrive
+(de hoje em diante), a data dela substitui a do campo. Reunião ganha de tarefa;
+entre iguais, ganha a mais próxima. Ganho e perdido não sofrem essa troca — lá
+o campo é registro histórico, e mexer nele mudaria `veioDeRet`, que decide se a
+venda saiu de um retorno.
+
+**Por quê:** o closer remarca movendo a atividade e não volta no campo. Um
+retorno marcado para 26/08 aparecia como 24/08 na tela, e o closer era cobrado
+por um atraso que não existia.
+
+**A atividade não é reconhecida pelo nome.** O processo manda escrever "Retorno"
+no assunto e ninguém escreve — o retorno do Alexandro Bianchi está agendado como
+"Boas Vindas Basico Aroma & ICOMM". Ler o nome faria um painel que só acerta
+quando todo mundo acerta.
+
+Campos de apoio: `retCampo` (o valor cru), `retFonte` (`"atividade"` | `"campo"`
+| `null`) e `retAssunto`. O bloco `retorno_fonte` da resposta conta quantos
+negócios abertos vêm de cada fonte e em quantos os dois discordam.
+
+`preenchimento.retorno_agendado` continua medindo o **campo**, de propósito: é
+ele que se quer cobrar do time.

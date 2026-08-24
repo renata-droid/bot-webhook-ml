@@ -16,6 +16,8 @@
 // O card [AE] Ganhos do Insights = status "won" + won_time no período,
 // agrupado pelo campo "Vendedor". É esse número que este endpoint reproduz.
 
+import { ehReuniao, melhorQue, type Escolha } from "./proxima.ts";
+
 const PD_TOKEN = Deno.env.get("PIPEDRIVE_API_TOKEN")!;
 const PD_BASE = (Deno.env.get("PIPEDRIVE_BASE_URL") ?? "https://api.pipedrive.com").replace(/\/+$/, "");
 
@@ -220,6 +222,8 @@ const num = (v: any): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 const dia = (v: any) => (typeof v === "string" && v.length >= 10 ? v.slice(0, 10) : null);
+const adiante = (iso: string, n: number) =>
+  new Date(Date.parse(iso + "T12:00:00Z") + n * 86400000).toISOString().slice(0, 10);
 const cf = (d: any, h: string) => d?.custom_fields?.[h] ?? d?.[h] ?? null;
 
 function rot(m: Meta, campo: string, v: any): string | null {
@@ -366,8 +370,12 @@ function plataformaDa(a: any): string | null {
   return null;
 }
 
-async function atividades(de: string, ate: string, interesse: Set<number>) {
-  const porNegocio = new Map<number, { plataformas: Record<string, number>; reunioes: number }>();
+async function atividades(de: string, ate: string, hoje: string, interesse: Set<number>) {
+  type Acc = {
+    plataformas: Record<string, number>; reunioes: number;
+    proxima: string | null; proximaAssunto: string | null; proximaEhReuniao: boolean;
+  };
+  const porNegocio = new Map<number, Acc>();
   const total: Record<string, number> = {};
   // O que o Pipedrive realmente devolve, sem interpretação nossa: serve para
   // descobrir por que uma plataforma não aparece, em vez de ficar no chute.
@@ -379,8 +387,13 @@ async function atividades(de: string, ate: string, interesse: Set<number>) {
   for (let pagina = 0; pagina < 12; pagina++) {
     // Sem done=1: reunião que aconteceu mas ninguém marcou como concluída também
     // conta — era isso que estava escondendo metade das reuniões.
+    // A janela vai 90 dias ALÉM do "Até". Retorno marcado para depois do fim do
+    // período é exatamente o que precisa aparecer na tela — com end_date=ate
+    // ele ficava de fora por definição, e a agenda futura chegava vazia.
+    // Os contadores de plataforma continuam presos a [de, ate] mais abaixo,
+    // para o funil não mudar de valor por causa desta janela maior.
     const q = new URLSearchParams({
-      start_date: de, end_date: ate, user_id: "0",
+      start_date: de, end_date: adiante(ate, 90), user_id: "0",
       start: String(pagina * 500), limit: "500",
     });
     let r: any;
@@ -391,6 +404,30 @@ async function atividades(de: string, ate: string, interesse: Set<number>) {
     for (const a of lote) {
       const id = Number(a.deal_id);
       if (!id || !interesse.has(id)) continue;
+      const venc = dia(a.due_date);
+
+      /* A PRÓXIMA atividade em aberto é a data real do retorno. O campo "Data
+         Retorno Agendado" é uma cópia que envelhece: o closer remarca movendo a
+         atividade e não volta no campo. Foi assim que a tela mostrou 24/08 para
+         um retorno que estava marcado para o dia 26. */
+      if (!a.done && venc && venc >= hoje) {
+        const acc = porNegocio.get(id) ??
+          { plataformas: {}, reunioes: 0, proxima: null, proximaAssunto: null,
+            proximaEhReuniao: false };
+        const cand: Escolha = { quando: venc, assunto: a.subject ?? null, ehReuniao: ehReuniao(a) };
+        const atual: Escolha | null = acc.proxima
+          ? { quando: acc.proxima, assunto: acc.proximaAssunto, ehReuniao: acc.proximaEhReuniao }
+          : null;
+        if (melhorQue(atual, cand)) {
+          acc.proxima = cand.quando;
+          acc.proximaAssunto = cand.assunto;
+          acc.proximaEhReuniao = cand.ehReuniao;
+        }
+        porNegocio.set(id, acc);
+      }
+
+      // daqui para baixo é contagem do PERÍODO pedido, não da janela estendida
+      if (!venc || venc < de || venc > ate) continue;
       vistas++;
       tipos[String(a.type ?? "?")] = (tipos[String(a.type ?? "?")] ?? 0) + 1;
       if (a.conference_meeting_client) {
@@ -407,7 +444,9 @@ async function atividades(de: string, ate: string, interesse: Set<number>) {
       const plat = plataformaDa(a);
       if (!plat) continue;
       total[plat] = (total[plat] ?? 0) + 1;
-      const acc = porNegocio.get(id) ?? { plataformas: {}, reunioes: 0 };
+      const acc = porNegocio.get(id) ??
+        { plataformas: {}, reunioes: 0, proxima: null, proximaAssunto: null,
+          proximaEhReuniao: false };
       acc.plataformas[plat] = (acc.plataformas[plat] ?? 0) + 1;
       acc.reunioes++;
       porNegocio.set(id, acc);
@@ -715,7 +754,7 @@ Deno.serve(async (req) => {
     const idsTodos = new Set<number>([...bruto.keys()]);
     const [itens, ativ] = await Promise.all([
       itensDosGanhos(idsGanhos),
-      atividades(de, ate, idsTodos),
+      atividades(de, ate, hoje, idsTodos),
     ]);
 
     const todos = [...bruto.values()]
@@ -724,7 +763,27 @@ Deno.serve(async (req) => {
         const a = ativ.porNegocio.get(d.id);
         // a plataforma mais usada no negócio é a que representa a reunião
         const top = a && Object.entries(a.plataformas).sort((p, q) => q[1] - p[1])[0];
-        return { ...x, plataforma: top ? top[0] : null, reunioesAtiv: a?.reunioes ?? 0 };
+
+        /* `retAgendado` passa a significar QUANDO O RETORNO É, e não "o que
+           está escrito no campo". Quando existe atividade em aberto, é ela que
+           manda: o campo não acompanha remarcação.
+
+           Só para negócio ABERTO. Em ganho e perdido o campo é registro
+           histórico e mexer nele mudaria `veioDeRet`, que decide se a venda
+           saiu de um retorno.
+
+           O valor cru do campo continua saindo em `retCampo`, para dar para
+           medir a diferença sem adivinhar. */
+        const proxima = x.s === "open" ? (a?.proxima ?? null) : null;
+        return {
+          ...x,
+          retCampo: x.retAgendado,
+          retAgendado: proxima ?? x.retAgendado,
+          retFonte: proxima ? "atividade" : x.retAgendado ? "campo" : null,
+          retAssunto: proxima ? (a?.proximaAssunto ?? null) : null,
+          plataforma: top ? top[0] : null,
+          reunioesAtiv: a?.reunioes ?? 0,
+        };
       });
 
     // Só entra negócio com o campo "Vendedor" preenchido — é o mesmo critério
@@ -748,7 +807,10 @@ Deno.serve(async (req) => {
     const pct = (n: number, t: number) => (t ? Math.round((n / t) * 100) : 0);
     const preenchimento = {
       base_abertos: emAberto2.length,
-      retorno_agendado: pct(emAberto2.filter((d) => d.retAgendado).length, emAberto2.length),
+      // de propósito sobre `retCampo`: é o preenchimento do CAMPO que se quer
+      // medir. Contra `retAgendado` isto viraria quase 100% e esconderia que
+      // ninguém preenche — que é justamente o que se está cobrando.
+      retorno_agendado: pct(emAberto2.filter((d) => d.retCampo).length, emAberto2.length),
       retorno_realizado: pct(emAberto2.filter((d) => d.retRealizado).length, emAberto2.length),
       no_show: pct(emAberto2.filter((d) => d.noShow).length, emAberto2.length),
       dia_reuniao: pct(emAberto2.filter((d) => d.diaReuniao).length, emAberto2.length),
@@ -798,6 +860,19 @@ Deno.serve(async (req) => {
         },
       },
       preenchimento,
+      /* Campo × agenda: em quantos negócios abertos os dois discordam. Se der
+         quase zero, o campo estava bom e a troca foi inócua; se der alto, é a
+         medida do estrago que o campo desatualizado vinha fazendo. */
+      retorno_fonte: (() => {
+        const c = { pela_atividade: 0, pelo_campo: 0, sem_nada: 0, discordam: 0 };
+        for (const d of emAberto2) {
+          if (d.retFonte === "atividade") c.pela_atividade++;
+          else if (d.retFonte === "campo") c.pelo_campo++;
+          else c.sem_nada++;
+          if (d.retFonte === "atividade" && d.retCampo && d.retCampo !== d.retAgendado) c.discordam++;
+        }
+        return c;
+      })(),
       // O que cada varredura leu de fato — é isto que responde "por que a
       // carteira aberta veio menor do que deveria".
       varredura: DIAG_V2,
