@@ -91,6 +91,8 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--roxo);outline-o
 @media(min-width:1080px){.g2b{grid-template-columns:1fr 1fr}}
 .g5{grid-template-columns:repeat(2,1fr)}
 @media(min-width:860px){.g5{grid-template-columns:repeat(5,1fr)}}
+.g4{grid-template-columns:repeat(2,1fr)}
+@media(min-width:860px){.g4{grid-template-columns:repeat(4,1fr)}}
 .aba-nota{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--muted);
   align-self:center;padding-right:4px}
 .g6{grid-template-columns:repeat(2,1fr)}
@@ -390,13 +392,7 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--card-2);padding:1
 </div><!-- /pg-geral -->
 
 <div class="pg" id="pg-retorno" hidden>
-  <div class="abas" id="abas-ret" role="tablist">
-    <button class="aba on" data-aba="hoje" role="tab">Hoje</button>
-    <button class="aba" data-aba="desempenho" role="tab">Desempenho</button>
-  </div>
-
-  <div class="tab" id="tab-hoje">
-    <div class="grid g5 sec" id="ret-acao"></div>
+  <div class="grid g4 sec" id="ret-acao"></div>
 
     <section class="card pad0 sec">
       <div class="ch" style="padding:16px 16px 0"><h2>Lastro das reuniões</h2>
@@ -414,12 +410,17 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--card-2);padding:1
     <section class="card pad0 sec">
       <div class="ch" style="padding:16px 16px 0"><h2>Negócios em retorno</h2>
         <span class="sub" id="ret-lista-sub"></span></div>
+      <div class="fbar">
+        <input id="ret-busca" type="search" autocomplete="off" aria-label="Buscar negócio em retorno"
+          placeholder="Buscar por cliente, closer, produto, canal, etapa ou nº do negócio…">
+        <button id="ret-limpa" type="button" class="lnk">limpar</button>
+      </div>
       <div class="fbar" id="ret-chips"></div>
       <div class="scroll"><table id="t-ret-lista"></table></div>
     </section>
-  </div>
 
-  <div class="tab" id="tab-desempenho" hidden>
+    <div class="ch" style="margin-top:26px"><h2>Desempenho</h2>
+      <span class="sub">mesmo período do topo · da reunião até a venda</span></div>
     <div class="grid g5 sec" id="des-funil"></div>
 
     <section class="card pad0 sec">
@@ -439,7 +440,6 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--card-2);padding:1
           porque ele não existe como opção do campo Canal</span></div>
       <div class="scroll"><table id="t-corte-plataforma"></table></div>
     </section>
-  </div>
 </div>
 <div class="pg" id="pg-churn" hidden>
   <div class="ch"><h2>Visão de churn</h2>
@@ -640,8 +640,8 @@ let D = [], CONF = null, DIAG = [];
 const FOTO = {};
 const state = {de:"", ate:"", basedata:"desfecho", orig:"", vend:"", prod:"",
                canal:"", lead:"", temp:"", ret:"retorno", kpi:"",
-               pg:"geral", aba:"hoje",
-               busca:"", an:"", cba:"cancelou", est:""};
+               pg:"geral",
+               busca:"", an:"", cba:"cancelou", est:"", buscaRet:""};
 const abertosNo = new Set();
 
 const ETAPAS_RET = () => state.ret==="followup"
@@ -1332,24 +1332,39 @@ const ROTULO_EST = {
 };
 const bolhaEst = e => e ? `<span class="bolha b-${e}">${ROTULO_EST[e]}</span>` : '<span class="dim">—</span>';
 
-/* A carteira de retorno: aberto e em etapa de retorno. Não depende do período
-   nem do filtro "Etapas do RET" do topo — Follow UP é justamente o caso mais
-   grave (ninguém marcou nada) e não pode ficar de fora da tela. */
+/* A carteira de retorno, DENTRO do período do topo.
+   O filtro de data é soberano: o mesmo recorte vale para os cartões, o gráfico e
+   a lista. Antes esta tela tinha três réguas ao mesmo tempo — cartões na carteira
+   de hoje, lastro no período, gráfico numa janela própria de 14 dias — e mexer no
+   filtro fazia um terço da página reagir. Era isso que a deixava incompreensível.
+
+   Continua ignorando o filtro "Etapas do RET" do topo: Follow UP é o caso mais
+   grave (ninguém marcou nada) e não pode sumir da tela por causa de um seletor.
+
+   Qual data decide se o negócio entra no recorte:
+   · tem retorno marcado  -> a data do retorno
+   · não tem data nenhuma -> o dia em que caiu na etapa (hoje menos os dias parado)
+   Sem esse segundo caso, "Sem data" — que é justamente o mais grave — sumiria da
+   tela por não ter data para ser testada. */
 const ETAPAS_RET_FIXAS = ["Retorno Agendado", "Retorno Realizado", "Follow UP"];
+const dataDoRetorno = d => d.retAgendado || d.retRealizado || d.noShow
+  || (d.dpar != null ? maisDias(hojeISO, -d.dpar) : null);
 function carteiraRet(){
-  return carteira().filter(d => ETAPAS_RET_FIXAS.includes(d.et) || d.et==="No Show"
-    || d.retAgendado || d.retRealizado || d.noShow);
+  return carteira()
+    .filter(d => ETAPAS_RET_FIXAS.includes(d.et) || d.et==="No Show"
+      || d.retAgendado || d.retRealizado || d.noShow)
+    .filter(d => { const x = dataDoRetorno(d); return x && x>=state.de && x<=state.ate; });
 }
 
 /* ---------- aba HOJE ---------- */
 function renderAcao(rows){
   const por = e => rows.filter(d => estadoRet(d)===e);
   const soma = a => a.reduce((x,d)=>x+d.val,0);
-  const amanha = rows.filter(d => d.retAgendado===maisDias(hojeISO,1));
+  // Sem "Amanhã": ele olhava para fora do período, e é justamente isso que
+  // estamos consertando aqui. Amanhã aparece quando o "Até" alcança amanhã.
   const cartoes = [
     ["Vencidos", por("vencido"), "var(--rosa)", "passou da data e ninguém registrou"],
     ["Hoje", por("hoje"), "var(--ambar)", "acontece hoje"],
-    ["Amanhã", amanha, "var(--peri)", "prepare-se"],
     ["Lead não apareceu", por("noshow"), "var(--ambar)", "no-show sem reagendar"],
     ["Sem data", por("semdata"), "var(--faint)", "ninguém marcou nada"],
   ];
@@ -1459,13 +1474,16 @@ function diagPlataforma(){
    olhando para a frente e outra para o período. Aqui é um gráfico só, do começo
    do período até duas semanas à frente, com a linha de hoje no meio. */
 function renderDias(cr){
-  const limite = maisDias(hojeISO, 14);
-  const fim = state.ate > limite ? state.ate : limite;
-  const ini = state.de < hojeISO ? state.de : hojeISO;
+  // A janela é o período do topo, e nada além dele. Antes esticava 14 dias à
+  // frente por conta própria — o que fazia o gráfico discordar dos cartões logo
+  // acima. Quem quiser ver o que vem estica o "Até"; a tela diz isso.
+  const ini = state.de, fim = state.ate;
   const ag = cr.filter(d => d.retAgendado && d.retAgendado>=ini && d.retAgendado<=fim);
 
   if(!ag.length){
-    el("ret-dias").innerHTML='<div class="empty">Nenhum retorno agendado nesta janela</div>';
+    el("ret-dias").innerHTML=`<div class="empty">Nenhum retorno agendado entre
+      ${brData(ini)} e ${brData(fim)}${fim<=hojeISO
+        ? ' — para ver o que ainda vem, estique o <b>Até</b> lá em cima' : ''}</div>`;
     el("t-dias-closer").innerHTML=""; el("dias-sub").textContent="";
     return;
   }
@@ -1511,7 +1529,8 @@ function renderDias(cr){
   const futuro  = ag.filter(d=>d.retAgendado>=hojeISO);
   const total = ag.reduce((a,d)=>a+d.val,0);
   el("dias-sub").textContent =
-    `de ${brData(ini)} a ${brData(fim)} · ${passado.length} atrás, ${futuro.length} pela frente`;
+    `${brData(ini)} a ${brData(fim)} · ${passado.length} atrás, ${futuro.length} pela frente`
+    + (fim<=hojeISO ? " · estique o Até para ver os próximos" : "");
 
   el("ret-dias").innerHTML=`
     <div class="legend" style="margin-bottom:10px;gap:16px;flex-wrap:wrap">
@@ -1565,7 +1584,14 @@ function renderDias(cr){
    trabalho, carteira inteira e a lista do forecast. Agora é uma só, e os estados
    viraram botões — que é o que a aba "Carteira" fazia com cinco cartões. */
 const ORDEM_EST = ["vencido","semdata","noshow","hoje","futuro","reagendado"];
-function renderListaRet(cr){
+function renderListaRet(todos){
+  // A busca corta antes dos chips, então os números dos chips batem com o que a
+  // tabela mostra. Buscar e clicar num estado se somam, não competem.
+  const q = state.buscaRet.trim().toLowerCase();
+  const campos = d => [d.t, d.v, d.p, d.et, d.canal, d.lead, d.tmp, String(d.id)]
+    .filter(Boolean).join(" ").toLowerCase();
+  const cr = q ? todos.filter(d => campos(d).includes(q)) : todos;
+
   const porEstado = {};
   cr.forEach(d=>{ const e=estadoRet(d); if(e) (porEstado[e]=porEstado[e]||[]).push(d); });
 
@@ -1582,14 +1608,20 @@ function renderListaRet(cr){
       || (a.retAgendado||"9999").localeCompare(b.retAgendado||"9999")
       || b.val-a.val);
 
+  const br = x => x ? x.split("-").reverse().join("/") : "";
   el("ret-lista-sub").textContent =
-    `${lista.length} de ${cr.length} negócios · ${BRL(lista.reduce((a,d)=>a+d.val,0))} · carteira de hoje`;
+    `${lista.length} de ${todos.length} negócios · ${BRL(lista.reduce((a,d)=>a+d.val,0))}`
+    + ` · ${br(state.de)} a ${br(state.ate)}`
+    + (q ? ` · busca "${state.buscaRet.trim()}"` : "");
   el("t-ret-lista").innerHTML = CAB_RET + `<tbody>${lista.map(linhaRet).join("")
     || '<tr><td colspan="12" class="empty">Nada neste recorte</td></tr>'}</tbody>`;
 
   el("ret-chips").querySelectorAll("[data-est]").forEach(b=>b.addEventListener("click",()=>{
     state.est = state.est===b.dataset.est ? "" : b.dataset.est; render();
   }));
+  // só reescreve o campo quando mudou por fora (o botão limpar), senão o cursor
+  // pula para o fim a cada tecla
+  if(el("ret-busca").value !== state.buscaRet) el("ret-busca").value = state.buscaRet;
 }
 
 /* ==========================================================
@@ -2559,12 +2591,6 @@ function irPara(pg){
   document.querySelector(".main").scrollIntoView({block:"start"});
   render();
 }
-function trocaAba(aba){
-  state.aba = aba;
-  document.querySelectorAll("#abas-ret .aba").forEach(b=>b.classList.toggle("on", b.dataset.aba===aba));
-  ["hoje","desempenho"].forEach(a=>el("tab-"+a).hidden = a!==aba);
-  render();
-}
 
 /* ---------- render ---------- */
 function render(){
@@ -2584,12 +2610,13 @@ function render(){
     return;
   }
   if(state.pg==="retorno"){
+    // Uma página só, uma régua só. Desempenho deixou de ser aba e virou o fim
+    // desta mesma página — o filtro do topo manda em todos os blocos.
     const cr = carteiraRet();
-    el("sub").textContent = state.aba==="desempenho"
-      ? `período ${br(state.de)} a ${br(state.ate)}`
-      : `${cr.length} negócios em retorno · carteira de hoje`;
-    if(state.aba==="hoje"){ renderAcao(cr); renderLastro(); renderDias(cr); renderListaRet(cr); }
-    else renderDesempenho(b);
+    el("sub").textContent =
+      `${cr.length} negócios em retorno · ${br(state.de)} a ${br(state.ate)}`;
+    renderAcao(cr); renderLastro(); renderDias(cr); renderListaRet(cr);
+    renderDesempenho(b);
     return;
   }
   const br2=x=>x?x.split("-").reverse().join("/"):"";
@@ -2655,9 +2682,6 @@ el("nav").addEventListener("click", e=>{
   const a = e.target.closest("a[data-pg]"); if(!a) return;
   e.preventDefault(); irPara(a.dataset.pg);
 });
-el("abas-ret").addEventListener("click", e=>{
-  const b = e.target.closest(".aba"); if(b) trocaAba(b.dataset.aba);
-});
 el("abas-churn").addEventListener("click", e=>{
   const b = e.target.closest(".aba"); if(!b) return;
   state.cba = b.dataset.cba;
@@ -2669,6 +2693,8 @@ el("abas-churn").addEventListener("click", e=>{
 el("deal-busca").addEventListener("input", e=>{ state.busca=e.target.value; render(); });
 el("deal-an").addEventListener("change", e=>{ state.an=e.target.value; render(); });
 el("deal-limpa").addEventListener("click", ()=>{ state.busca=""; state.an=""; render(); });
+el("ret-busca").addEventListener("input", e=>{ state.buscaRet=e.target.value; render(); });
+el("ret-limpa").addEventListener("click", ()=>{ state.buscaRet=""; state.est=""; render(); });
 
 window.__painel = (dados) => {
   D = dados.deals; CONF = dados.conferencia?.ae_ganhos ?? null; DIAG = dados.avisos ?? [];
