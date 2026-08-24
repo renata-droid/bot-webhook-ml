@@ -728,3 +728,277 @@ export function salPorCloser(rows: Negocio[]) {
   }).filter(x => x.negocios)
     .sort((a, b) => (a.cicloCloser ?? 1e9) - (b.cicloCloser ?? 1e9));
 }
+
+/* ============================================================================
+   RETORNO
+   ============================================================================
+   Três abas, três perguntas diferentes — e é por isso que elas usam réguas de
+   data diferentes:
+
+   · Carteira  — em que pé está cada retorno AGORA. Bloco de ESTADO: lê a
+                 carteira aberta inteira, vista a partir da data de referência
+                 (o "Até"). Não leva recorte de intervalo. "Vencido" é estado
+                 acumulado, não evento: retorno marcado para 19/08 e não feito
+                 continua vencido no dia 24. Filtrar [24/08 a 24/08] exigiria
+                 que o retorno tivesse sido marcado exatamente naquele dia — e
+                 zerava a tela inteira com 29 negócios abertos.
+   · Lastro    — o que as reuniões DO PERÍODO renderam. Bloco de EVENTO: leva o
+                 intervalo do topo.
+   · Funil     — a conversão das reuniões do período. Bloco de EVENTO também.
+
+   O gráfico "Retornos por dia" mora na Carteira mas é EVENTO: a barra é o dia
+   agendado, dentro do intervalo. Por isso filtrar um dia mostra a barra
+   daquele dia, com os cartões acima ainda contando a carteira inteira. */
+
+/** A data de onde se olha o funil. Não é janela: é o dia em que a foto foi tirada. */
+export const refISO = (f: Filtros): string => f.ate;
+
+/* Etapas que contam como retorno mesmo sem nenhuma data preenchida. Ignoram de
+   propósito o filtro "ret" do topo: Follow UP é o caso mais grave (ninguém
+   marcou nada) e não pode sumir da tela por causa de um seletor. */
+export const ETAPAS_RET_FIXAS = ["Retorno Agendado", "Retorno Realizado", "Follow UP"];
+
+export const carteiraRet = (deals: Negocio[], f: Filtros): Negocio[] =>
+  carteira(deals, f).filter(d =>
+    ETAPAS_RET_FIXAS.includes(d.et) || d.et === "No Show" ||
+    d.retAgendado || d.retRealizado || d.noShow);
+
+/* Só 7% preenchem "Data Retorno Realizado" e 2% "Data NoShow" — mas a etapa do
+   funil é movida. Então a etapa vale como registro quando a data falta. */
+export const foiRealizado = (d: Negocio): boolean =>
+  !!d.retRealizado || d.et === "Retorno Realizado";
+export const foiNoShow = (d: Negocio): boolean =>
+  !!d.noShow || d.et === "No Show";
+
+export type EstadoRet =
+  | "vencido" | "hoje" | "futuro" | "noshow" | "reagendado" | "realizado" | "semdata";
+
+/* Em que pé está o retorno deste negócio.
+   A ordem importa: reagendado ganha de no-show, e no-show ganha de vencido —
+   senão o closer que correu atrás aparece como se não tivesse feito nada. */
+export function estadoRet(d: Negocio, f: Filtros): EstadoRet | null {
+  if (d.s !== "open") return null;
+  const ag = d.retAgendado;
+  const hoje = refISO(f);
+  const rz = d.retRealizado || (d.et === "Retorno Realizado" ? (d.retAgendado || hoje) : null);
+  const ns = d.noShow      || (d.et === "No Show"           ? (d.retAgendado || hoje) : null);
+  if (ns && ag && ag > ns)     return "reagendado";
+  if (ns && (!ag || ag <= ns)) return "noshow";
+  if (rz && (!ag || rz >= ag)) return "realizado";
+  if (!ag)                     return "semdata";
+  if (ag > hoje)               return "futuro";
+  if (ag === hoje)             return "hoje";
+  return "vencido";
+}
+
+export const ROTULO_EST: Record<EstadoRet, string> = {
+  vencido: "Vencido", hoje: "Hoje", futuro: "Agendado", noshow: "Lead não apareceu",
+  reagendado: "Reagendado", realizado: "Realizado", semdata: "Sem data",
+};
+
+/* Vencido primeiro: a tela é fila de trabalho, não relatório. */
+export const PESO_EST: Record<EstadoRet, number> = {
+  vencido: 0, semdata: 1, noshow: 2, hoje: 3, reagendado: 4, futuro: 5, realizado: 6,
+};
+/* A ordem dos chips da lista, e ela NÃO é a mesma do PESO_EST acima.
+   "realizado" fica de fora de propósito: o negócio continua na lista e entra no
+   chip "Todos", mas não ganha botão próprio — a lista é fila de trabalho, e
+   retorno já realizado não é trabalho pendente. Efeito colateral: a soma dos
+   chips não fecha com o "Todos" quando existe algum realizado na carteira. */
+export const ORDEM_EST: EstadoRet[] =
+  ["vencido", "semdata", "noshow", "hoje", "futuro", "reagendado"];
+
+/* ---------- os quatro cartões de ação ---------- */
+/* Não existe cartão "Amanhã": ele olhava para fora do período. Amanhã aparece
+   quando o "Até" alcança amanhã — a tela obedece o filtro, não o contrário. */
+export function cartoesRet(rows: Negocio[], f: Filtros) {
+  const por = (e: EstadoRet) => rows.filter(d => estadoRet(d, f) === e);
+  const soma = (a: Negocio[]) => a.reduce((x, d) => x + d.val, 0);
+  const cartao = (chave: EstadoRet, rotulo: string, vazio: string) => {
+    const deals = por(chave);
+    return { chave, rotulo, deals, n: deals.length, valor: soma(deals), vazio };
+  };
+  return [
+    cartao("vencido", "Vencidos", "passou da data e ninguém registrou"),
+    cartao("hoje", "Hoje", "acontece na data de referência"),
+    cartao("noshow", "Lead não apareceu", "no-show sem reagendar"),
+    cartao("semdata", "Sem data", "ninguém marcou nada"),
+  ];
+}
+
+/* ---------- lastro: a reunião saiu com retorno marcado? ---------- */
+/* A pergunta do gestor de manhã. Lê D inteiro, não a carteira: reunião que já
+   virou venda ou perda também teve lastro, e sumiria se lêssemos só os abertos. */
+export function lastro(deals: Negocio[], f: Filtros) {
+  const reunioes = deals.filter(d => filtrosComuns(d, f))
+    .filter(d => d.diaReuniao && d.diaReuniao >= f.de && d.diaReuniao <= f.ate);
+  const temRetorno = (d: Negocio) => !!(d.retAgendado || d.retRealizado);
+  const comRet = reunioes.filter(temRetorno);
+  const noShow = reunioes.filter(d => !temRetorno(d) && !!d.noShow);
+  const sem    = reunioes.filter(d => !temRetorno(d) && !d.noShow);
+
+  const porCloser = [...new Set(reunioes.map(d => d.v))]
+    .map(v => {
+      const r = reunioes.filter(d => d.v === v);
+      const ok = r.filter(temRetorno).length;
+      const ns = r.filter(d => !temRetorno(d) && !!d.noShow).length;
+      return {
+        v, deals: r, total: r.length, ok, ns, nada: r.length - ok - ns,
+        linhas: r.map(d => ({
+          d,
+          estado: temRetorno(d) ? "ok" : d.noShow ? "ns" : "nada" as "ok" | "ns" | "nada",
+        })),
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+
+  return { reunioes, comRet, noShow, sem, porCloser };
+}
+
+/* ---------- retornos por dia ---------- */
+/* Junta o que eram dois blocos — "agenda dos próximos dias" e "forecast por
+   dia". Era o mesmo dado desenhado duas vezes, um olhando para a frente e outro
+   para o período, e eles se contradiziam na tela.
+
+   A janela é o período do topo e nada além dele. Antes esticava 14 dias à
+   frente por conta própria, e aí o gráfico discordava dos cartões logo acima.
+   Quem quiser ver o que vem estica o "Até" — e `depois` diz quantos ficaram de
+   fora, para a pessoa decidir se vale. */
+export const TEMPS_RET: Array<string | null> = ["Quente", "Morno", "Frio", null];
+
+export function retornosPorDia(cr: Negocio[], f: Filtros) {
+  const ag = cr.filter(d => d.retAgendado && d.retAgendado >= f.de && d.retAgendado <= f.ate);
+  const depois = cr.filter(d => d.retAgendado && d.retAgendado > f.ate).length;
+  if (!ag.length) return { vazio: true as const, ag, depois, dias: [], porDia: [], porCloser: [],
+                           passado: [], futuro: [], total: 0 };
+
+  const dias = [...new Set(ag.map(d => d.retAgendado as string))].sort();
+  const porDia = dias.map(dt => {
+    const arr = ag.filter(d => d.retAgendado === dt);
+    return {
+      dt, n: arr.length, total: arr.reduce((a, d) => a + d.val, 0),
+      hoje: dt === refISO(f),
+      partes: TEMPS_RET.map(t => ({
+        t, valor: arr.filter(d => (d.tmp || null) === t).reduce((a, d) => a + d.val, 0),
+      })),
+    };
+  });
+
+  const passado = ag.filter(d => (d.retAgendado as string) < refISO(f));
+  const futuro  = ag.filter(d => (d.retAgendado as string) >= refISO(f));
+
+  const porCloser = [...new Set(ag.map(d => d.v || "Sem vendedor"))].map(v => {
+    const arr = ag.filter(d => (d.v || "Sem vendedor") === v).slice()
+      .sort((a, b) => (a.retAgendado || "").localeCompare(b.retAgendado || "") || b.val - a.val);
+    const cel = (t: string) => {
+      const a = arr.filter(d => (d.tmp || null) === t);
+      return { n: a.length, v: a.reduce((x, d) => x + d.val, 0) };
+    };
+    return {
+      v, deals: arr, n: arr.length, val: arr.reduce((a, d) => a + d.val, 0),
+      atras: arr.filter(d => (d.retAgendado as string) < refISO(f)).length,
+      q: cel("Quente"), m: cel("Morno"), f: cel("Frio"),
+    };
+  }).sort((a, b) => b.val - a.val || b.n - a.n);
+
+  return {
+    vazio: false as const, ag, depois, dias, porDia, porCloser, passado, futuro,
+    total: ag.reduce((a, d) => a + d.val, 0),
+    legenda: TEMPS_RET.map(t => ({ t, n: ag.filter(d => (d.tmp || null) === t).length })),
+  };
+}
+
+/* ---------- a lista única, com busca e chips ---------- */
+/* Antes eram três tabelas com o mesmo conteúdo e filtros diferentes: fila de
+   trabalho, carteira inteira e lista do forecast. Agora é uma só, e os estados
+   viraram botões.
+
+   A busca corta ANTES dos chips, então o número do chip bate com o que a tabela
+   mostra. Buscar e clicar num estado se somam, não competem. */
+export function listaRet(
+  todos: Negocio[], f: Filtros, busca = "", estado: EstadoRet | "" = "",
+) {
+  const q = busca.trim().toLowerCase();
+  const campos = (d: Negocio) =>
+    [d.t, d.v, d.p, d.et, d.canal, d.lead, d.tmp, String(d.id)]
+      .filter(Boolean).join(" ").toLowerCase();
+  const cr = q ? todos.filter(d => campos(d).includes(q)) : todos;
+
+  const porEstado = {} as Record<EstadoRet, Negocio[]>;
+  cr.forEach(d => {
+    const e = estadoRet(d, f);
+    if (e) (porEstado[e] = porEstado[e] || []).push(d);
+  });
+
+  const chips = [{
+    chave: "" as const, rotulo: "Todos", n: cr.length,
+    valor: cr.reduce((a, d) => a + d.val, 0),
+  }].concat(
+    ORDEM_EST.filter(e => porEstado[e]?.length).map(e => ({
+      chave: e as never, rotulo: ROTULO_EST[e], n: porEstado[e].length,
+      valor: porEstado[e].reduce((a, d) => a + d.val, 0),
+    })),
+  );
+
+  const lista = (estado ? (porEstado[estado] || []) : cr).slice()
+    .sort((a, b) =>
+      PESO_EST[estadoRet(a, f) as EstadoRet] - PESO_EST[estadoRet(b, f) as EstadoRet] ||
+      (a.retAgendado || "9999").localeCompare(b.retAgendado || "9999") ||
+      b.val - a.val);
+
+  return {
+    lista, chips, porEstado, total: todos.length,
+    valor: lista.reduce((a, d) => a + d.val, 0),
+    /** dias de atraso — só faz sentido para quem está vencido */
+    atrasoDe: (d: Negocio) =>
+      estadoRet(d, f) === "vencido" ? difDias(d.retAgendado, refISO(f)) : null,
+  };
+}
+
+/* ---------- funil do retorno ---------- */
+/* Aninhado: cada etapa é um subconjunto da anterior. Sem isso as porcentagens
+   passam de 100% e o funil vira enfeite.
+
+   A fonte é D inteiro filtrado, NÃO base(): base() já vem recortado por data de
+   desfecho, então o funil exigia que o negócio tivesse sido fechado E a reunião
+   acontecido na mesma janela. Quase nada satisfaz as duas — era por isso que
+   dava zero reuniões com o Lastro logo ao lado mostrando seis. */
+export function funilRet(rows: Negocio[], f: Filtros) {
+  const reunioes   = rows.filter(d => d.diaReuniao && d.diaReuniao >= f.de && d.diaReuniao <= f.ate);
+  const agendados  = reunioes.filter(d => d.retAgendado || foiRealizado(d) || foiNoShow(d));
+  const realizados = agendados.filter(foiRealizado);
+  const ganhos     = realizados.filter(d => d.s === "won");
+  return { reunioes, agendados, realizados, ganhos };
+}
+
+export function cartoesFunil(rows: Negocio[], f: Filtros) {
+  const g = funilRet(rows, f);
+  const taxa = (a: number, b: number) => (b ? a / b : null);
+  return {
+    ...g,
+    taxaAgendou:  taxa(g.agendados.length, g.reunioes.length),
+    taxaRealizou: taxa(g.realizados.length, g.agendados.length),
+    taxaVenda:    taxa(g.ganhos.length, g.realizados.length),
+    /** quantos retornos custa fechar uma venda */
+    porVenda: g.ganhos.length ? g.realizados.length / g.ganhos.length : null,
+  };
+}
+
+export const CORTES_RET = {
+  v:          { titulo: "Closer",         chave: (d: Negocio) => d.v || "Sem vendedor" },
+  canal:      { titulo: "Canal",          chave: (d: Negocio) => d.canal || "Sem canal" },
+  plataforma: { titulo: "Onde aconteceu", chave: (d: Negocio) => (d.plataforma as string) || "Não identificada" },
+};
+
+export function corteRet(rows: Negocio[], f: Filtros, qual: keyof typeof CORTES_RET) {
+  const { chave } = CORTES_RET[qual];
+  const linhas = [...new Set(rows.map(chave))]
+    .map(k => {
+      const r = rows.filter(d => chave(d) === k);
+      const g = funilRet(r, f);
+      return { k, deals: r, ...g, receita: g.ganhos.reduce((a, d) => a + d.val, 0) };
+    })
+    .filter(x => x.reunioes.length || x.agendados.length || x.ganhos.length)
+    .sort((a, b) => b.agendados.length - a.agendados.length || b.receita - a.receita);
+  return { linhas, total: funilRet(rows, f), titulo: CORTES_RET[qual].titulo };
+}
