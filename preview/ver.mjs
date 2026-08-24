@@ -108,6 +108,16 @@ const ESPERADO = {
   reunioes: ["re-cards", "re-rank", "re-faixas", "re-dores", "re-lista"],
 };
 
+// Páginas com abas: o print da aba aberta não prova nada sobre as outras.
+// O Lastro virou aba própria e ficaria fora da conferência se ninguém clicasse.
+const ABAS = {
+  retorno: {
+    carteira: ["ret-acao", "ret-dias", "t-dias-closer", "t-ret-lista", "ret-chips"],
+    lastro:   ["lastro-cards"],
+    funil:    ["des-funil", "t-corte-v"],
+  },
+};
+
 const so = process.argv[2];
 const paginas = so ? [so] : Object.keys(ESPERADO);
 
@@ -122,7 +132,7 @@ const erros = [];
 aba.on("pageerror", e => erros.push(String(e)));
 // Fonte do Google e fotos do bucket não existem sem rede — é ruído esperado
 // aqui, não defeito do painel. Só erro de verdade conta.
-const RUIDO = /ERR_FILE_NOT_FOUND|ERR_CONNECTION|ERR_NAME_NOT_RESOLVED|ERR_INTERNET/;
+const RUIDO = /ERR_FILE_NOT_FOUND|ERR_CERT_|ERR_CONNECTION|ERR_NAME_NOT_RESOLVED|ERR_INTERNET/;
 aba.on("console", m => {
   if (m.type() === "error" && !RUIDO.test(m.text())) erros.push("console: " + m.text());
 });
@@ -137,14 +147,27 @@ for (const pg of paginas) {
   await aba.waitForTimeout(500);
   await aba.screenshot({ path: join(SAIDA, pg + ".png"), fullPage: true });
 
-  const vazios = [];
-  for (const id of ESPERADO[pg] ?? []) {
-    const n = await aba.evaluate(x => (document.getElementById(x)?.innerHTML || "").length, id);
-    if (!n) vazios.push(id);
+  const confere = async (rotulo, ids) => {
+    const vazios = [];
+    for (const id of ids) {
+      const n = await aba.evaluate(x => (document.getElementById(x)?.innerHTML || "").length, id);
+      if (!n) vazios.push(id);
+    }
+    const sub = await aba.textContent("#sub");
+    console.log(`${vazios.length ? "✗" : "✓"} ${rotulo.padEnd(18)} ${sub}`);
+    if (vazios.length) { problemas++; console.log(`    vazios: ${vazios.join(", ")}`); }
+  };
+
+  if (ABAS[pg]) {
+    for (const [nome, ids] of Object.entries(ABAS[pg])) {
+      await aba.click(`#abas-ret .aba[data-aba="${nome}"]`);
+      await aba.waitForTimeout(400);
+      await aba.screenshot({ path: join(SAIDA, `${pg}-${nome}.png`), fullPage: true });
+      await confere(`${pg}/${nome}`, ids);
+    }
+  } else {
+    await confere(pg, ESPERADO[pg] ?? []);
   }
-  const sub = await aba.textContent("#sub");
-  console.log(`${vazios.length ? "✗" : "✓"} ${pg.padEnd(9)} ${sub}`);
-  if (vazios.length) { problemas++; console.log(`    vazios: ${vazios.join(", ")}`); }
 }
 
 if (erros.length) { problemas++; console.log("\nerros de JS:", erros); }

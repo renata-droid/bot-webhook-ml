@@ -390,17 +390,12 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--card-2);padding:1
 <div class="pg" id="pg-retorno" hidden>
   <div class="abas" id="abas-ret" role="tablist">
     <button class="aba on" data-aba="carteira" role="tab">Carteira</button>
+    <button class="aba" data-aba="lastro" role="tab">Lastro das reuniões</button>
     <button class="aba" data-aba="funil" role="tab">Funil do retorno</button>
   </div>
 
   <div class="tab" id="tab-carteira">
   <div class="grid g4 sec" id="ret-acao"></div>
-
-    <section class="card pad0 sec">
-      <div class="ch" style="padding:16px 16px 0"><h2>Lastro das reuniões</h2>
-        <span class="sub" id="lastro-sub"></span></div>
-      <div class="grid g2b" style="padding:0 16px 16px" id="lastro-cards"></div>
-    </section>
 
     <section class="card sec">
       <div class="ch"><h2>Retornos por dia</h2>
@@ -421,6 +416,14 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--card-2);padding:1
       <div class="scroll"><table id="t-ret-lista"></table></div>
     </section>
 
+  </div>
+
+  <div class="tab" id="tab-lastro" hidden>
+    <section class="card pad0 sec">
+      <div class="ch" style="padding:16px 16px 0"><h2>Lastro das reuniões</h2>
+        <span class="sub" id="lastro-sub"></span></div>
+      <div class="grid g2b" style="padding:0 16px 16px" id="lastro-cards"></div>
+    </section>
   </div>
 
   <div class="tab" id="tab-funil" hidden>
@@ -2623,7 +2626,7 @@ const PAGINAS = {
 function trocaAba(aba){
   state.aba = aba;
   document.querySelectorAll("#abas-ret .aba").forEach(b=>b.classList.toggle("on", b.dataset.aba===aba));
-  ["carteira","funil"].forEach(a=>el("tab-"+a).hidden = a!==aba);
+  ["carteira","lastro","funil"].forEach(a=>el("tab-"+a).hidden = a!==aba);
   render();
 }
 function irPara(pg){
@@ -2655,7 +2658,14 @@ function render(){
     // Uma página só, uma régua só. Desempenho deixou de ser aba e virou o fim
     // desta mesma página — o filtro do topo manda em todos os blocos.
     const cr = carteiraRet();
-    if(state.aba==="funil"){
+    if(state.aba==="lastro"){
+      // O lastro é bloco de EVENTO: o que aconteceu na janela escolhida. Saiu da
+      // Carteira e virou aba porque responde outra pergunta — a Carteira mostra
+      // em que pé está cada retorno agora, o lastro mostra o que as reuniões do
+      // período renderam. Misturados na mesma tela, um respondia pelo outro.
+      el("sub").textContent = `reuniões de ${br(state.de)} a ${br(state.ate)}`;
+      renderLastro();
+    } else if(state.aba==="funil"){
       el("sub").textContent = `reuniões de ${br(state.de)} a ${br(state.ate)}`;
       // Mesma fonte do Lastro: TODOS os negócios com Dia da Reunião no período.
       // Antes vinha de base(), que já é recortado por data de desfecho — o funil
@@ -2666,7 +2676,7 @@ function render(){
     } else {
       el("sub").textContent = `${cr.length} negócios em retorno · carteira em `
         + br(refISO()) + ` · eventos de ${br(state.de)} a ${br(state.ate)}`;
-      renderAcao(cr); renderLastro(); renderDias(cr); renderListaRet(cr);
+      renderAcao(cr); renderDias(cr); renderListaRet(cr);
     }
     return;
   }
