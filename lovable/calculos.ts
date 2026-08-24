@@ -222,3 +222,211 @@ export function qualificacao(rows: Negocio[]) {
 export const BRL = (n: number) => "R$ " + Math.round(n).toLocaleString("pt-BR");
 export const PCT = (n: number) =>
   (isFinite(n) ? (n * 100).toFixed(1).replace(".", ",") : "0,0") + "%";
+
+/* ============================================================================
+   CHURN
+   ============================================================================
+   Duas leituras do mesmo período, e elas NÃO dão o mesmo número:
+   · "cancelou" — quem pediu cancelamento nestas datas, tenha vendido quando
+     tiver vendido. É como o CS enxerga o mês. Usa o histórico de 12 meses.
+   · "vendeu"   — das vendas destas datas, quantas caíram. É como o comercial
+     enxerga a própria safra. Usa os negócios do período.
+   Mostrar uma e chamar de "churn do mês" sem dizer qual é o erro clássico.   */
+
+export const META_CHURN = 0.05;   // meta da casa, medida sobre o RECEBIMENTO
+export const DIAS_PRECOCE = 7;    // cancelou em até 7 dias do ganho = precoce
+
+/* As sete opções do campo "Motivo Churn" no Pipedrive, agrupadas por quem tem a
+   mão no problema. Quatro grupos, não cinco: "Negativa contratual" está em
+   Comercial — contrato que o cliente se recusa a honrar é venda mal alinhada,
+   não categoria à parte. Logística/Marketplace fica sozinho: não é erro nosso
+   nem problema do cliente, é a operação em volta.
+   O campo é de MÚLTIPLA ESCOLHA — um cancelamento entra em mais de um motivo, e
+   por isso as porcentagens somam mais de 100%. A tela precisa dizer isso. */
+export const MOTIVOS_CHURN: Array<[string, string]> = [
+  ["Arrependimento (comprou no impulso)",    "Comercial"],
+  ["Desalinhamento no comercial",            "Comercial"],
+  ["Negativa contratual",                    "Comercial"],
+  ["Erro de Processo (CS)",                  "CS"],
+  ["Produto do cliente",                     "Problema do Cliente"],
+  ["Problemas pessoais do cliente",          "Problema do Cliente"],
+  ["Logística ou problema e/ou marketplace", "Logística/Marketplace"],
+];
+const CULPA = new Map(MOTIVOS_CHURN);
+export const areaDe = (m: string): string => CULPA.get(m) ?? "Não informado";
+
+export const AREAS: Array<[string, string, string]> = [
+  ["Comercial",             "rosa",  "venda no impulso, promessa desalinhada ou negativa contratual"],
+  ["CS",                    "ambar", "falha no processo de acompanhamento"],
+  ["Problema do Cliente",   "peri",  "motivo fora do nosso alcance"],
+  ["Logística/Marketplace", "ciano", "logística, frete ou conta no marketplace"],
+];
+
+/** O que de fato entrou. "Valor pago" vazio cai para o valor do negócio — e a
+    tela avisa quantos entraram por aproximação. */
+export const recebidoDe = (d: Negocio): number => (d.valPago > 0 ? d.valPago : d.val) || 0;
+
+export const ehPrecoce = (d: Negocio): boolean => {
+  const x = difDias(d.dGanho, d.dc);
+  return x != null && x <= DIAS_PRECOCE;
+};
+
+export const mesDe = (iso?: string | null) => (iso ? iso.slice(0, 7) : null);
+
+/** Quem entra na conta de churn, conforme a aba escolhida. */
+export function selecaoChurn(
+  noPeriodo: Negocio[], churn12: Negocio[], f: Filtros, aba: "cancelou" | "vendeu",
+) {
+  const ganhos = noPeriodo.filter(d => d.s === "won");
+  const doHistorico = churn12.filter(d => d.dc && d.dc >= f.de && d.dc <= f.ate);
+  const doPeriodo = noPeriodo.filter(d => d.churn);
+  const cs = aba === "vendeu" ? doPeriodo : (doHistorico.length ? doHistorico : doPeriodo);
+  return {
+    ganhos, cs, doPeriodo,
+    semData: aba === "vendeu" ? 0 : doPeriodo.filter(d => !d.dc).length,
+  };
+}
+
+/** Os números do topo da página. A meta é sobre o RECEBIMENTO, não sobre
+    contagem de aluno — apresentar a taxa por cabeça como se fosse a meta é o
+    erro que esta função existe para evitar. */
+export function resumoChurn(cs: Negocio[], ganhos: Negocio[]) {
+  const reemb = cs.reduce((a, d) => a + (d.reemb || 0), 0);
+  const precoces = cs.filter(ehPrecoce);
+  const recebido = ganhos.reduce((a, d) => a + recebidoDe(d), 0);
+  const contratos = cs.reduce((a, d) => a + (d.val || 0), 0);
+  return {
+    cancelamentos: cs.length, reemb, contratos,
+    precoces: precoces.length,
+    pctPrecoce: cs.length ? precoces.length / cs.length : null,
+    ticketReemb: cs.length && reemb ? reemb / cs.length : null,
+    comReembolso: cs.filter(d => d.reemb > 0).length,
+    recebido,
+    semValorPago: ganhos.filter(d => !(d.valPago > 0)).length,
+    /* a meta: reembolsado ÷ recebido */
+    taxa: recebido ? reemb / recebido : null,
+    /* a mesma coisa em cabeças — serve de nota de rodapé, nunca de manchete */
+    taxaQtd: ganhos.length ? cs.length / ganhos.length : null,
+  };
+}
+
+/** Ordenado pelo dinheiro devolvido, não pela contagem: três cancelamentos de
+    R$ 500 e um de R$ 12 mil não são o mesmo problema. */
+export function churnPorCloser(noPeriodo: Negocio[], cs: Negocio[]) {
+  const ganhos = noPeriodo.filter(d => d.s === "won");
+  const nomes = [...new Set([...noPeriodo.map(d => d.v), ...cs.map(d => d.v)])];
+  return nomes.map(v => {
+    const c = cs.filter(d => d.v === v);
+    const g = ganhos.filter(d => d.v === v);
+    return {
+      v, n: c.length, ganhos: g.length,
+      reemb: c.reduce((a, d) => a + (d.reemb || 0), 0),
+      contrato: c.reduce((a, d) => a + (d.val || 0), 0),
+      precoce: c.filter(ehPrecoce).length,
+      taxa: g.length ? c.length / g.length : 0,
+    };
+  }).filter(x => x.ganhos || x.n)
+    .sort((a, b) => b.reemb - a.reemb || b.n - a.n || b.taxa - a.taxa);
+}
+
+/** Por Buddy, com o motivo junto: sem ele o bloco diz quanto foi devolvido mas
+    não POR QUE — e é o porquê que decide com quem é a conversa. */
+export function churnPorBuddy(cs: Negocio[]) {
+  const comBuddy = cs.filter(d => d.buddy);
+  const linhas = [...new Set(comBuddy.map(d => d.buddy as string))].map(b => {
+    const r = comBuddy.filter(d => d.buddy === b);
+    const mot: Record<string, number> = {};
+    r.forEach(d => ((d.cm as string[])?.length ? (d.cm as string[]) : ["Não informado"])
+      .forEach(x => { mot[x] = (mot[x] || 0) + 1; }));
+    return {
+      b, n: r.length, mot,
+      reemb: r.reduce((a, d) => a + (d.reemb || 0), 0),
+      val: r.reduce((a, d) => a + d.val, 0),
+      precoce: r.filter(ehPrecoce).length,
+    };
+  }).sort((a, b) => b.reemb - a.reemb || b.n - a.n);
+  return { linhas, semBuddy: cs.length - comBuddy.length };
+}
+
+export function churnPorProduto(noPeriodo: Negocio[], cs: Negocio[]) {
+  const ganhos = noPeriodo.filter(d => d.s === "won");
+  return [...new Set([...ganhos.map(d => d.p), ...cs.map(d => d.p)])]
+    .map(p => {
+      const v = ganhos.filter(d => d.p === p);
+      const c = cs.filter(d => d.p === p);
+      return {
+        p, v: v.length, c: c.length,
+        taxa: v.length ? c.length / v.length : null,
+        precoce: c.filter(ehPrecoce).length,
+        reemb: c.reduce((a, d) => a + (d.reemb || 0), 0),
+      };
+    })
+    .filter(x => x.v || x.c)
+    .sort((a, b) => (b.taxa ?? -1) - (a.taxa ?? -1) || b.v - a.v);
+}
+
+/** De quem foi o churn. Conta CITAÇÕES de motivo, não pessoas — o campo aceita
+    mais de um motivo, então a soma passa de 100% e a tela tem que falar isso. */
+export function culpaDoChurn(cs: Negocio[]) {
+  const cont: Record<string, { n: number; reemb: number; motivos: Record<string, number> }> = {};
+  cs.forEach(d => ((d.cm as string[]) || []).forEach(m => {
+    const a = areaDe(m);
+    cont[a] = cont[a] || { n: 0, reemb: 0, motivos: {} };
+    cont[a].n++; cont[a].reemb += d.reemb || 0;
+    cont[a].motivos[m] = (cont[a].motivos[m] || 0) + 1;
+  }));
+  const linhas = AREAS
+    .map(([nome, cor, oq]) => ({ nome, cor, oq, ...(cont[nome] || { n: 0, reemb: 0, motivos: {} }) }))
+    .filter(x => x.n).sort((a, b) => b.n - a.n);
+  return {
+    linhas,
+    citacoes: linhas.reduce((a, x) => a + x.n, 0),
+    semMotivo: cs.filter(d => !(d.cm as string[])?.length).length,
+  };
+}
+
+export function tempoAteCancelar(cs: Negocio[]) {
+  const faixas: Array<[string, number, number]> = [
+    [`Até ${DIAS_PRECOCE} dias · precoce`, 0, DIAS_PRECOCE],
+    [`${DIAS_PRECOCE + 1} a 30 dias`, DIAS_PRECOCE + 1, 30],
+    ["31 a 90 dias", 31, 90],
+    ["Mais de 90", 91, 1e9],
+  ];
+  const dur = cs.map(d => difDias(d.dGanho, d.dc)).filter((x): x is number => x != null);
+  return {
+    comData: dur.length,
+    faixas: faixas.map(([rot, a, b]) => ({ rot, n: dur.filter(x => x >= a && x <= b).length })),
+  };
+}
+
+/* Cancelamentos mês a mês do ANO CIVIL do filtro — janeiro até o mês do "Até".
+   Não é janela móvel: misturar dois anos no mesmo gráfico impede comparar com a
+   meta do ano. A média do ano divide pelos meses DECORRIDOS, não por doze: em
+   agosto, dividir por doze joga a média um terço para baixo. */
+export function churnPorMes(churn12: Negocio[], f: Filtros) {
+  const ano = (f.ate || "").slice(0, 4);
+  const ultimo = Number((f.ate || "").slice(5, 7));
+  const meses: string[] = [];
+  for (let m = 1; m <= ultimo; m++) meses.push(`${ano}-${String(m).padStart(2, "0")}`);
+
+  const dados = meses.map(mm => {
+    const c = churn12.filter(d => mesDe(d.dc) === mm);
+    const p = c.filter(ehPrecoce).length;
+    return {
+      mes: mm,
+      rot: mm.slice(5) + "/" + mm.slice(2, 4),
+      n: c.length, precoce: p, resto: c.length - p,
+      reemb: c.reduce((a, d) => a + (d.reemb || 0), 0),
+    };
+  });
+  const tot = dados.reduce((a, d) => a + d.n, 0);
+  const totPrecoce = dados.reduce((a, d) => a + d.precoce, 0);
+  const totReemb = dados.reduce((a, d) => a + d.reemb, 0);
+  const nMeses = dados.length;
+  return {
+    ano, dados, tot, totPrecoce, totReemb, nMeses,
+    mediaMes: nMeses ? totReemb / nMeses : 0,      // R$ devolvido por mês
+    mediaQtd: nMeses ? tot / nMeses : 0,           // cancelamentos por mês
+    pior: [...dados].sort((a, b) => b.n - a.n)[0] ?? null,
+  };
+}
