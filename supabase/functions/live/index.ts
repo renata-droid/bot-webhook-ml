@@ -16,8 +16,6 @@
 // O card [AE] Ganhos do Insights = status "won" + won_time no período,
 // agrupado pelo campo "Vendedor". É esse número que este endpoint reproduz.
 
-import { ehReuniao, melhorQue, type Escolha } from "./proxima.ts";
-
 const PD_TOKEN = Deno.env.get("PIPEDRIVE_API_TOKEN")!;
 const PD_BASE = (Deno.env.get("PIPEDRIVE_BASE_URL") ?? "https://api.pipedrive.com").replace(/\/+$/, "");
 
@@ -368,6 +366,32 @@ function plataformaDa(a: any): string | null {
   for (const [nome, re] of PLATAFORMAS) if (re.test(pistas)) return nome;
   if (a.type === "call") return "Ligação";
   return null;
+}
+
+/* Qual atividade representa o retorno de um negócio.
+   ==================================================
+   NÃO é pelo nome. O processo manda o closer escrever "Retorno" no assunto e
+   ninguém escreve — o retorno do Alexandro Bianchi está agendado como "Boas
+   Vindas Basico Aroma & ICOMM". Filtrar por nome ou por tipo faria um painel
+   que só acerta quando todo mundo acerta, ou seja, nunca.
+
+   Reunião ganha de tarefa, e é só isso: num negócio parado em "Retorno
+   Agendado", a próxima reunião marcada é o retorno, chame-se como se chamar.
+
+   Mora aqui dentro, e não num arquivo ao lado, porque o editor do Supabase
+   publica UM arquivo. Separado, o deploy falha com "Module not found". */
+type Escolha = { quando: string; assunto: string | null; ehReuniao: boolean };
+
+const ehReuniao = (a: any): boolean =>
+  String(a.type ?? "").toLowerCase().includes("meeting") ||
+  !!a.conference_meeting_url ||
+  !!a.conference_meeting_client;
+
+/** Vale a pena trocar o candidato atual por este? */
+function melhorQue(atual: Escolha | null, cand: Escolha): boolean {
+  if (!atual) return true;
+  if (cand.ehReuniao !== atual.ehReuniao) return cand.ehReuniao;
+  return cand.quando < atual.quando;
 }
 
 async function atividades(de: string, ate: string, hoje: string, interesse: Set<number>) {
