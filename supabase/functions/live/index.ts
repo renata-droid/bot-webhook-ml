@@ -777,23 +777,20 @@ Deno.serve(async (req) => {
         // a plataforma mais usada no negócio é a que representa a reunião
         const top = a && Object.entries(a.plataformas).sort((p, q) => q[1] - p[1])[0];
 
-        /* `retAgendado` passa a significar QUANDO O RETORNO É, e não "o que
-           está escrito no campo". Quando existe atividade em aberto, é ela que
-           manda: o campo não acompanha remarcação.
+        /* A próxima atividade em aberto, para negócio ABERTO. Entra como campo
+           NOVO e não substitui `retAgendado`: esta função serve o painel
+           inteiro, e `retAgendado` é lido também pelo forecast da Visão geral.
+           Trocar o valor aqui mexeria em página que ninguém pediu para mexer.
 
-           Só para negócio ABERTO. Em ganho e perdido o campo é registro
-           histórico e mexer nele mudaria `veioDeRet`, que decide se a venda
-           saiu de um retorno.
+           Quem decide usar isto é o código da página Retorno, que é onde a
+           pergunta "quando é o retorno" existe. Aqui só se entrega o dado.
 
-           O valor cru do campo continua saindo em `retCampo`, para dar para
-           medir a diferença sem adivinhar. */
+           Ganho e perdido não recebem: lá o campo é registro histórico. */
         const proxima = x.s === "open" ? (a?.proxima ?? null) : null;
         return {
           ...x,
-          retCampo: x.retAgendado,
-          retAgendado: proxima ?? x.retAgendado,
-          retFonte: proxima ? "atividade" : x.retAgendado ? "campo" : null,
-          retAssunto: proxima ? (a?.proximaAssunto ?? null) : null,
+          proxAtiv: proxima,
+          proxAtivAssunto: proxima ? (a?.proximaAssunto ?? null) : null,
           plataforma: top ? top[0] : null,
           reunioesAtiv: a?.reunioes ?? 0,
         };
@@ -820,10 +817,7 @@ Deno.serve(async (req) => {
     const pct = (n: number, t: number) => (t ? Math.round((n / t) * 100) : 0);
     const preenchimento = {
       base_abertos: emAberto2.length,
-      // de propósito sobre `retCampo`: é o preenchimento do CAMPO que se quer
-      // medir. Contra `retAgendado` isto viraria quase 100% e esconderia que
-      // ninguém preenche — que é justamente o que se está cobrando.
-      retorno_agendado: pct(emAberto2.filter((d) => d.retCampo).length, emAberto2.length),
+      retorno_agendado: pct(emAberto2.filter((d) => d.retAgendado).length, emAberto2.length),
       retorno_realizado: pct(emAberto2.filter((d) => d.retRealizado).length, emAberto2.length),
       no_show: pct(emAberto2.filter((d) => d.noShow).length, emAberto2.length),
       dia_reuniao: pct(emAberto2.filter((d) => d.diaReuniao).length, emAberto2.length),
@@ -879,10 +873,10 @@ Deno.serve(async (req) => {
       retorno_fonte: (() => {
         const c = { pela_atividade: 0, pelo_campo: 0, sem_nada: 0, discordam: 0 };
         for (const d of emAberto2) {
-          if (d.retFonte === "atividade") c.pela_atividade++;
-          else if (d.retFonte === "campo") c.pelo_campo++;
+          if (d.proxAtiv) c.pela_atividade++;
+          else if (d.retAgendado) c.pelo_campo++;
           else c.sem_nada++;
-          if (d.retFonte === "atividade" && d.retCampo && d.retCampo !== d.retAgendado) c.discordam++;
+          if (d.proxAtiv && d.retAgendado && d.proxAtiv !== d.retAgendado) c.discordam++;
         }
         return c;
       })(),

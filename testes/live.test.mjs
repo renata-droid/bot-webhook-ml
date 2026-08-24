@@ -110,24 +110,26 @@ ok("diaReuniao intacto em todos (é ele que faz o funil)", () =>
   assert.deepEqual(B.json.deals.map((d) => [d.id, d.diaReuniao]),
                    A.json.deals.map((d) => [d.id, d.diaReuniao])));
 
-ok("o caso do Alexandro: a agenda venceu o campo", () => {
-  assert.equal(a[501].retAgendado, dd(-2), "antiga tinha que trazer o campo");
-  assert.equal(b[501].retAgendado, dd(2),  "nova tinha que trazer a atividade");
-  assert.equal(b[501].retCampo, dd(-2));
-  assert.equal(b[501].retFonte, "atividade");
-  assert.equal(b[501].retAssunto, "Boas Vindas Basico Aroma & ICOMM");
+ok("retAgendado NÃO muda em negócio nenhum — a live só acrescenta", () =>
+  assert.deepEqual(B.json.deals.map((d) => [d.id, d.retAgendado]),
+                   A.json.deals.map((d) => [d.id, d.retAgendado])));
+
+ok("o caso do Alexandro: a agenda entra como dado novo", () => {
+  assert.equal(b[501].retAgendado, dd(-2), "o campo cru continua o que era");
+  assert.equal(b[501].proxAtiv, dd(2), "e a agenda vem ao lado");
+  assert.equal(b[501].proxAtivAssunto, "Boas Vindas Basico Aroma & ICOMM");
 });
 
-ok("sem atividade em aberto, o campo continua valendo", () => {
+ok("sem atividade em aberto, proxAtiv vem nulo e o campo é que vale", () => {
+  assert.equal(b[502].proxAtiv, null);
   assert.equal(b[502].retAgendado, dd(3));
-  assert.equal(b[502].retFonte, "campo");
 });
 
-ok("negócio GANHO não sofre a troca (senão mexe no veioDeRet)", () =>
-  assert.equal(b[601].retAgendado, a[601].retAgendado));
+ok("negócio GANHO não recebe proxAtiv", () =>
+  assert.equal(b[601].proxAtiv ?? null, null));
 
 ok("atividade concluída não vira 'próxima'", () =>
-  assert.notEqual(b[501].retAgendado, dd(-5)));
+  assert.notEqual(b[501].proxAtiv, dd(-5)));
 
 ok("retorno_fonte conta certo", () =>
   assert.deepEqual(B.json.retorno_fonte,

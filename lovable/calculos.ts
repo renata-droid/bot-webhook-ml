@@ -48,14 +48,9 @@ export type Negocio = {
   dDesfecho: string | null;
   dpar: number | null;       // dias parado na etapa
   nret: number | null;       // nº de retornos
-  /* QUANDO O RETORNO É — não é "o que está escrito no campo".
-     Quando o negócio está aberto e tem atividade em aberto na agenda, a Edge
-     Function põe aqui a data DELA. O campo "Data Retorno Agendado" é uma cópia
-     que envelhece: o closer remarca movendo a atividade e não volta no campo. */
-  retAgendado: string | null;
-  retCampo?: string | null;                    // o valor cru do campo, para medir a diferença
-  retFonte?: "atividade" | "campo" | null;     // de onde veio o retAgendado acima
-  retAssunto?: string | null;                  // o assunto da atividade, quando veio dela
+  retAgendado: string | null;        // o campo "Data Retorno Agendado", cru
+  proxAtiv?: string | null;          // a próxima atividade em aberto na agenda
+  proxAtivAssunto?: string | null;
   retRealizado: string | null;
   noShow: string | null;
   diaReuniao: string | null;
@@ -760,6 +755,21 @@ export function salPorCloser(rows: Negocio[]) {
 /** A data de onde se olha o funil. Não é janela: é o dia em que a foto foi tirada. */
 export const refISO = (f: Filtros): string => f.ate;
 
+/* QUANDO O RETORNO E.
+   ===================
+   A agenda ganha do campo. O campo "Data Retorno Agendado" e uma copia que
+   envelhece: o closer remarca movendo a atividade no Pipedrive e nao volta no
+   campo. O retorno do Alexandro Bianchi estava marcado para 26/08 na agenda e
+   24/08 no campo, e a tela cobrava um atraso que nao existia.
+
+   Mora aqui, e nao na Edge Function, porque o campo cru e lido por outras
+   paginas (o forecast da Visao geral, por exemplo). A pergunta "quando e o
+   retorno" e desta pagina; a resposta tambem.
+
+   Daqui para baixo, todo mundo passa por esta funcao. Ler o campo cru direto
+   e reintroduzir o bug. */
+export const dataRet = (d: Negocio): string | null => d.proxAtiv ?? d.retAgendado;
+
 /* A ETAPA manda, e só ela. Ignoram de propósito o filtro "ret" do topo: Follow
    UP é o caso mais grave (ninguém marcou nada) e não pode sumir da tela por
    causa de um seletor.
@@ -794,10 +804,10 @@ export type EstadoRet =
    senão o closer que correu atrás aparece como se não tivesse feito nada. */
 export function estadoRet(d: Negocio, f: Filtros): EstadoRet | null {
   if (d.s !== "open") return null;
-  const ag = d.retAgendado;
+  const ag = dataRet(d);
   const hoje = refISO(f);
-  const rz = d.retRealizado || (d.et === "Retorno Realizado" ? (d.retAgendado || hoje) : null);
-  const ns = d.noShow      || (d.et === "No Show"           ? (d.retAgendado || hoje) : null);
+  const rz = d.retRealizado || (d.et === "Retorno Realizado" ? (dataRet(d) || hoje) : null);
+  const ns = d.noShow      || (d.et === "No Show"           ? (dataRet(d) || hoje) : null);
   if (ns && ag && ag > ns)     return "reagendado";
   if (ns && (!ag || ag <= ns)) return "noshow";
   if (rz && (!ag || rz >= ag)) return "realizado";
@@ -848,7 +858,7 @@ export function cartoesRet(rows: Negocio[], f: Filtros) {
 export function lastro(deals: Negocio[], f: Filtros) {
   const reunioes = deals.filter(d => filtrosComuns(d, f))
     .filter(d => d.diaReuniao && d.diaReuniao >= f.de && d.diaReuniao <= f.ate);
-  const temRetorno = (d: Negocio) => !!(d.retAgendado || d.retRealizado);
+  const temRetorno = (d: Negocio) => !!(dataRet(d) || d.retRealizado);
   const comRet = reunioes.filter(temRetorno);
   const noShow = reunioes.filter(d => !temRetorno(d) && !!d.noShow);
   const sem    = reunioes.filter(d => !temRetorno(d) && !d.noShow);
@@ -883,14 +893,14 @@ export function lastro(deals: Negocio[], f: Filtros) {
 export const TEMPS_RET: Array<string | null> = ["Quente", "Morno", "Frio", null];
 
 export function retornosPorDia(cr: Negocio[], f: Filtros) {
-  const ag = cr.filter(d => d.retAgendado && d.retAgendado >= f.de && d.retAgendado <= f.ate);
-  const depois = cr.filter(d => d.retAgendado && d.retAgendado > f.ate).length;
+  const ag = cr.filter(d => { const x = dataRet(d); return !!x && x >= f.de && x <= f.ate; });
+  const depois = cr.filter(d => { const x = dataRet(d); return !!x && x > f.ate; }).length;
   if (!ag.length) return { vazio: true as const, ag, depois, dias: [], porDia: [], porCloser: [],
                            passado: [], futuro: [], total: 0 };
 
-  const dias = [...new Set(ag.map(d => d.retAgendado as string))].sort();
+  const dias = [...new Set(ag.map(d => dataRet(d) as string))].sort();
   const porDia = dias.map(dt => {
-    const arr = ag.filter(d => d.retAgendado === dt);
+    const arr = ag.filter(d => dataRet(d) === dt);
     return {
       dt, n: arr.length, total: arr.reduce((a, d) => a + d.val, 0),
       hoje: dt === refISO(f),
@@ -900,12 +910,12 @@ export function retornosPorDia(cr: Negocio[], f: Filtros) {
     };
   });
 
-  const passado = ag.filter(d => (d.retAgendado as string) < refISO(f));
-  const futuro  = ag.filter(d => (d.retAgendado as string) >= refISO(f));
+  const passado = ag.filter(d => (dataRet(d) as string) < refISO(f));
+  const futuro  = ag.filter(d => (dataRet(d) as string) >= refISO(f));
 
   const porCloser = [...new Set(ag.map(d => d.v || "Sem vendedor"))].map(v => {
     const arr = ag.filter(d => (d.v || "Sem vendedor") === v).slice()
-      .sort((a, b) => (a.retAgendado || "").localeCompare(b.retAgendado || "") || b.val - a.val);
+      .sort((a, b) => (dataRet(a) || "").localeCompare(dataRet(b) || "") || b.val - a.val);
     const cel = (t: string) => {
       const a = arr.filter(d => (d.tmp || null) === t);
       return { n: a.length, v: a.reduce((x, d) => x + d.val, 0) };
@@ -967,7 +977,7 @@ export function listaRet(
   const lista = (estado ? (porEstado[estado] || []) : cr).slice()
     .sort((a, b) =>
       PESO_EST[estadoRet(a, f) as EstadoRet] - PESO_EST[estadoRet(b, f) as EstadoRet] ||
-      (a.retAgendado || "9999").localeCompare(b.retAgendado || "9999") ||
+      (dataRet(a) || "9999").localeCompare(dataRet(b) || "9999") ||
       b.val - a.val);
 
   return {
@@ -975,7 +985,7 @@ export function listaRet(
     valor: lista.reduce((a, d) => a + d.val, 0),
     /** dias de atraso — só faz sentido para quem está vencido */
     atrasoDe: (d: Negocio) =>
-      estadoRet(d, f) === "vencido" ? difDias(d.retAgendado, refISO(f)) : null,
+      estadoRet(d, f) === "vencido" ? difDias(dataRet(d), refISO(f)) : null,
   };
 }
 
@@ -989,7 +999,7 @@ export function listaRet(
    dava zero reuniões com o Lastro logo ao lado mostrando seis. */
 export function funilRet(rows: Negocio[], f: Filtros) {
   const reunioes   = rows.filter(d => d.diaReuniao && d.diaReuniao >= f.de && d.diaReuniao <= f.ate);
-  const agendados  = reunioes.filter(d => d.retAgendado || foiRealizado(d) || foiNoShow(d));
+  const agendados  = reunioes.filter(d => dataRet(d) || foiRealizado(d) || foiNoShow(d));
   const realizados = agendados.filter(foiRealizado);
   const ganhos     = realizados.filter(d => d.s === "won");
   return { reunioes, agendados, realizados, ganhos };

@@ -1324,6 +1324,18 @@ const maisDias = (iso,n) => new Date(Date.parse(iso+"T12:00:00Z")+n*86400e3).toI
 const difDias  = (a,b) => (a&&b) ? Math.round((Date.parse(b+"T12:00:00Z")-Date.parse(a+"T12:00:00Z"))/86400e3) : null;
 const brData   = x => x ? x.split("-").reverse().join("/") : "—";
 
+/* QUANDO O RETORNO E.
+   A agenda ganha do campo. "Data Retorno Agendado" e uma copia que envelhece:
+   o closer remarca movendo a atividade no Pipedrive e nao volta no campo. O
+   retorno do Alexandro Bianchi estava marcado para 26/08 na agenda e 24/08 no
+   campo, e a tela cobrava um atraso que nao existia.
+
+   Mora aqui, e nao na Edge Function, porque o campo cru e lido por outras
+   paginas: o forecast da Visao geral, por exemplo. A pergunta "quando e o
+   retorno" e desta pagina, e a resposta tambem. Daqui para baixo todo mundo
+   passa por esta funcao; ler o campo cru direto e reintroduzir o bug. */
+const dataRet = d => d.proxAtiv || d.retAgendado;
+
 /* Em que pé está o retorno deste negócio.
    A ordem importa: reagendado ganha de no-show, e no-show ganha de vencido —
    senão o closer que correu atrás aparece como se não tivesse feito nada. */
@@ -1333,10 +1345,10 @@ const foiRealizado = d => d.retRealizado || d.et==="Retorno Realizado";
 const foiNoShow    = d => d.noShow || d.et==="No Show";
 function estadoRet(d){
   if(d.s!=="open") return null;
-  const ag=d.retAgendado;
+  const ag=dataRet(d);
   const hoje=refISO();
-  const rz=d.retRealizado || (d.et==="Retorno Realizado" ? (d.retAgendado||hoje) : null);
-  const ns=d.noShow      || (d.et==="No Show"           ? (d.retAgendado||hoje) : null);
+  const rz=d.retRealizado || (d.et==="Retorno Realizado" ? (dataRet(d)||hoje) : null);
+  const ns=d.noShow      || (d.et==="No Show"           ? (dataRet(d)||hoje) : null);
   if(ns && ag && ag>ns)                    return "reagendado";
   if(ns && (!ag || ag<=ns))                return "noshow";
   if(rz && (!ag || rz>=ag))                return "realizado";
@@ -1403,9 +1415,9 @@ function renderLastro(){
                                          : `${brData(state.de)} a ${brData(state.ate)}`;
   const reunioes = D.filter(filtrosComuns)
     .filter(d => d.diaReuniao && d.diaReuniao>=state.de && d.diaReuniao<=state.ate);
-  const comRet = reunioes.filter(d => d.retAgendado || d.retRealizado);
-  const noShow = reunioes.filter(d => !d.retAgendado && !d.retRealizado && d.noShow);
-  const sem    = reunioes.filter(d => !d.retAgendado && !d.retRealizado && !d.noShow);
+  const comRet = reunioes.filter(d => dataRet(d) || d.retRealizado);
+  const noShow = reunioes.filter(d => !dataRet(d) && !d.retRealizado && d.noShow);
+  const sem    = reunioes.filter(d => !dataRet(d) && !d.retRealizado && !d.noShow);
   el("lastro-sub").textContent = reunioes.length
     ? `${rotJanela} · ${reunioes.length} reuniões · ${comRet.length} saíram com retorno`
       + ` · ${sem.length} sem nada`
@@ -1415,8 +1427,8 @@ function renderLastro(){
     .sort((a,b)=>reunioes.filter(d=>d.v===b).length - reunioes.filter(d=>d.v===a).length);
   el("lastro-cards").innerHTML = vendedores.length ? vendedores.map(v=>{
     const r = reunioes.filter(d=>d.v===v);
-    const ok = r.filter(d=>d.retAgendado||d.retRealizado).length;
-    const ns = r.filter(d=>!d.retAgendado&&!d.retRealizado&&d.noShow).length;
+    const ok = r.filter(d=>dataRet(d)||d.retRealizado).length;
+    const ns = r.filter(d=>!dataRet(d)&&!d.retRealizado&&d.noShow).length;
     const nada = r.length-ok-ns;
     return `<div class="lastro">
       <h4>${AV(v,22)}${esc(v)}
@@ -1424,12 +1436,12 @@ function renderLastro(){
           color:${nada?"var(--rosa)":"var(--oliva)"}">${ok}/${r.length}</span></h4>
       <div class="res">${ok} com retorno${ns?` · ${ns} no-show`:""}${nada?` · <b style="color:var(--rosa)">${nada} sem nada</b>`:""}</div>
       <ul>${r.map(d=>{
-        const e = d.retAgendado||d.retRealizado ? "ok" : d.noShow ? "ns" : "no";
+        const e = dataRet(d)||d.retRealizado ? "ok" : d.noShow ? "ns" : "no";
         const ic = e==="ok"?'<span style="color:var(--oliva)">✓</span>'
                  : e==="ns"?'<span style="color:var(--ambar)">◑</span>'
                  : '<span style="color:var(--rosa)">✕</span>';
         return `<li>${ic}<span style="flex:1">${esc(d.t)} ${linkDeal(d)}</span>
-          <span class="mini">${d.retAgendado ? "ret. "+brData(d.retAgendado)
+          <span class="mini">${dataRet(d) ? "ret. "+brData(dataRet(d))
             : e==="ns" ? "no-show" : "sem retorno"}</span></li>`;
       }).join("")}</ul></div>`;
   }).join("") : '<div class="vazio" style="grid-column:1/-1">Nenhuma reunião com "Dia da Reunião" preenchido neste recorte</div>';
@@ -1438,12 +1450,12 @@ function renderLastro(){
 const PESO_EST = {vencido:0, semdata:1, noshow:2, hoje:3, reagendado:4, futuro:5, realizado:6};
 function linhaRet(d){
   const e = estadoRet(d);
-  const atraso = e==="vencido" ? difDias(d.retAgendado, refISO()) : null;
+  const atraso = e==="vencido" ? difDias(dataRet(d), refISO()) : null;
   return `<tr><td class="name">${esc(d.t)} ${linkDeal(d)}</td>
     <td><span class="who">${AV(d.v,22)}${esc(d.v)}</span></td>
     <td class="dim" style="min-width:150px">${esc(d.p)}</td>
     <td>${bolhaEst(e)}</td>
-    <td class="n">${d.retAgendado?brData(d.retAgendado):'<span class="dim">—</span>'}</td>
+    <td class="n">${dataRet(d)?brData(dataRet(d)):'<span class="dim">—</span>'}</td>
     <td class="n" style="color:${atraso>2?"var(--rosa)":"inherit"}">${atraso!=null?atraso+"d":'<span class="dim">—</span>'}</td>
     <td class="n" style="color:${d.dpar>=15?"var(--rosa)":d.dpar>=8?"var(--ambar)":"inherit"}">${
       d.dpar!=null?d.dpar+"d":'<span class="dim">—</span>'}</td>
@@ -1462,7 +1474,7 @@ const CAB_RET = `<thead><tr><th>Negócio</th><th>Closer</th><th>Produto</th><th>
    as porcentagens passam de 100% e o funil vira enfeite. */
 function funilRet(rows){
   const reunioes  = rows.filter(d => d.diaReuniao && d.diaReuniao>=state.de && d.diaReuniao<=state.ate);
-  const agendados = reunioes.filter(d => d.retAgendado || foiRealizado(d) || foiNoShow(d));
+  const agendados = reunioes.filter(d => dataRet(d) || foiRealizado(d) || foiNoShow(d));
   const realizados= agendados.filter(foiRealizado);
   const ganhos    = realizados.filter(d => d.s==="won");
   return {reunioes, agendados, realizados, ganhos};
@@ -1499,20 +1511,20 @@ function renderDias(cr){
   // frente por conta própria — o que fazia o gráfico discordar dos cartões logo
   // acima. Quem quiser ver o que vem estica o "Até"; a tela diz isso.
   const ini = state.de, fim = state.ate;
-  const ag = cr.filter(d => d.retAgendado && d.retAgendado>=ini && d.retAgendado<=fim);
+  const ag = cr.filter(d => { const x=dataRet(d); return x && x>=ini && x<=fim; });
 
   if(!ag.length){
-    const depois = cr.filter(d => d.retAgendado && d.retAgendado>fim).length;
+    const depois = cr.filter(d => { const x=dataRet(d); return x && x>fim; }).length;
     el("ret-dias").innerHTML=`<div class="empty">Nenhum retorno agendado entre
       ${brData(ini)} e ${brData(fim)}${depois
         ? ` — há <b>${depois}</b> marcado(s) depois de ${brData(fim)}; estique o <b>Até</b> para vê-los` : ''}</div>`;
     el("t-dias-closer").innerHTML=""; el("dias-sub").textContent="";
     return;
   }
-  const dias=[...new Set(ag.map(d=>d.retAgendado))].sort();
+  const dias=[...new Set(ag.map(dataRet))].sort();
   const temps=[["Quente","var(--rosa)"],["Morno","var(--ambar)"],["Frio","var(--peri)"],[null,"var(--card-2)"]];
   const porDia=dias.map(dt=>{
-    const arr=ag.filter(d=>d.retAgendado===dt);
+    const arr=ag.filter(d=>dataRet(d)===dt);
     return {dt, n:arr.length, total:arr.reduce((a,d)=>a+d.val,0),
       partes:temps.map(([t,c])=>({c, v:arr.filter(d=>(d.tmp||null)===t).reduce((a,d)=>a+d.val,0)}))};
   });
@@ -1547,12 +1559,12 @@ function renderDias(cr){
     x2="${(x(iHoje)-4).toFixed(1)}" y2="${base}" stroke="var(--lima)" stroke-width="1"
     stroke-dasharray="3 3" opacity=".7"/>` : "";
 
-  const passado = ag.filter(d=>d.retAgendado<refISO());
-  const futuro  = ag.filter(d=>d.retAgendado>=refISO());
+  const passado = ag.filter(d=>dataRet(d)<refISO());
+  const futuro  = ag.filter(d=>dataRet(d)>=refISO());
   const total = ag.reduce((a,d)=>a+d.val,0);
   // Em vez de mandar esticar o filtro, diz quantos ficaram de fora — aí a
   // pessoa decide se vale esticar. Nagging não é informação.
-  const depois = cr.filter(d => d.retAgendado && d.retAgendado>fim).length;
+  const depois = cr.filter(d => { const x=dataRet(d); return x && x>fim; }).length;
   el("dias-sub").textContent =
     (ini===fim ? brData(ini) : `${brData(ini)} a ${brData(fim)}`)
     + ` · ${passado.length} atrás, ${futuro.length} na janela`
@@ -1577,7 +1589,7 @@ function renderDias(cr){
   // de quem é esse forecast
   const donos=[...new Set(ag.map(d=>d.v||"Sem vendedor"))].map(v=>{
     const arr=ag.filter(d=>(d.v||"Sem vendedor")===v).slice()
-      .sort((a,b)=>(a.retAgendado||"").localeCompare(b.retAgendado||"") || b.val-a.val);
+      .sort((a,b)=>(dataRet(a)||"").localeCompare(dataRet(b)||"") || b.val-a.val);
     const cel=t=>{ const a=arr.filter(d=>(d.tmp||null)===t);
       return {n:a.length, v:a.reduce((x,d)=>x+d.val,0)}; };
     return {v, arr, n:arr.length, val:arr.reduce((a,d)=>a+d.val,0),
@@ -1607,7 +1619,7 @@ function renderDias(cr){
               <i class="dot" style="background:${cor}"></i>${esc(d.t)} ${linkDeal(d)}
               <span class="dim" style="font-size:11px"> · ${esc(d.p)}</span></td>
             <td class="n">${bolhaEst(e)}</td>
-            <td class="n">${brData(d.retAgendado)}</td>
+            <td class="n">${brData(dataRet(d))}</td>
             <td class="n">${BRL(d.val)}</td></tr>`;
         }).join("") : "")).join("")}
       <tr class="total"><td>Total</td>
@@ -1654,7 +1666,7 @@ function renderListaRet(todos){
 
   const lista = (state.est ? (porEstado[state.est]||[]) : cr)
     .slice().sort((a,b)=> PESO_EST[estadoRet(a)]-PESO_EST[estadoRet(b)]
-      || (a.retAgendado||"9999").localeCompare(b.retAgendado||"9999")
+      || (dataRet(a)||"9999").localeCompare(dataRet(b)||"9999")
       || b.val-a.val);
 
   const br = x => x ? x.split("-").reverse().join("/") : "";
