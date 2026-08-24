@@ -264,11 +264,24 @@ function perdidos(de: string, ate: string) {
   return paginaV2("lost", { updated_since: de + "T00:00:00Z" }, noPeriodo);
 }
 
-// Carteira aberta de hoje. Só interessa negócio com "Vendedor" preenchido —
-// descartando o resto aqui, o que sobra é a carteira do comercial, não a conta inteira.
-function abertos() {
+/* Carteira aberta. Só interessa negócio com "Vendedor" preenchido — o resto é a
+   conta inteira, não o comercial.
+
+   A conta tem MAIS DE 15 MIL negócios abertos, quase todos em funis de captação
+   sem Vendedor. Varrer tudo batia no teto de páginas e a carteira chegava pela
+   metade: 37 achados de ~124 reais, sem ninguém perceber, porque o que faltava
+   era silenciosamente preenchido pela rota dos "criados no período" — e por isso
+   o número mudava quando se mexia no filtro de data.
+
+   Em vez de ler mais páginas, lemos menos negócios: só os que tiveram movimento
+   no último ano, filtrado no servidor. Negócio aberto e intocado há mais de um
+   ano não é carteira, é entulho — e o que sobra cabe em poucas páginas. */
+const JANELA_ABERTOS_DIAS = 365;
+function abertos(hoje: string) {
+  const desde = new Date(Date.parse(hoje) - JANELA_ABERTOS_DIAS * 86400000)
+    .toISOString().slice(0, 10);
   const temVendedor = (d: any) => cru(cf(d, CAMPOS.vendedor)) != null;
-  return paginaV2("open", {}, temVendedor);
+  return paginaV2("open", { updated_since: desde + "T00:00:00Z" }, temVendedor);
 }
 
 // Histórico de churn dos últimos 12 meses, independente do período do topo.
@@ -692,7 +705,7 @@ Deno.serve(async (req) => {
       porData("won_time", de, dias),
       porData("add_time", de, dias),
       perdidos(de, ate),
-      abertos(),
+      abertos(hoje),
       anotacoes(de, ate),
       historicoChurn(m, ate),
     ]);
@@ -776,8 +789,10 @@ Deno.serve(async (req) => {
       `na página Churn fica vazio. Procurei por nome ("Buddy", "CS", "Customer Success") ` +
       `e pelas opções do campo.`);
     if (truncou.size) avisos.push(
-      `A varredura de negócios <b>${[...truncou].join(" e ")}</b> bateu no teto de páginas — ` +
-      `pode faltar negócio antigo. Avisa que eu aumento o limite.`);
+      `A varredura de <b>${[...truncou].join(" e ")}</b> bateu no teto de páginas — ` +
+      `faltou negócio. A carteira aberta já é limitada aos últimos ` +
+      `${JANELA_ABERTOS_DIAS} dias de movimento; se ainda trunca, é preciso ` +
+      `restringir por funil.`);
 
     return Response.json({
       ok: true,
@@ -795,6 +810,7 @@ Deno.serve(async (req) => {
       // O que cada varredura leu de fato — é isto que responde "por que a
       // carteira aberta veio menor do que deveria".
       varredura: DIAG_V2,
+      janela_abertos_dias: JANELA_ABERTOS_DIAS,
       contagem: {
         total: deals.length,
         ganhos: deals.filter((d) => d.s === "won").length,

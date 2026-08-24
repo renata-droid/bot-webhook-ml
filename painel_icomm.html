@@ -1562,10 +1562,11 @@ function renderDias(cr){
 
   // de quem é esse forecast
   const donos=[...new Set(ag.map(d=>d.v||"Sem vendedor"))].map(v=>{
-    const arr=ag.filter(d=>(d.v||"Sem vendedor")===v);
+    const arr=ag.filter(d=>(d.v||"Sem vendedor")===v).slice()
+      .sort((a,b)=>(a.retAgendado||"").localeCompare(b.retAgendado||"") || b.val-a.val);
     const cel=t=>{ const a=arr.filter(d=>(d.tmp||null)===t);
       return {n:a.length, v:a.reduce((x,d)=>x+d.val,0)}; };
-    return {v, n:arr.length, val:arr.reduce((a,d)=>a+d.val,0),
+    return {v, arr, n:arr.length, val:arr.reduce((a,d)=>a+d.val,0),
       atras:arr.filter(d=>d.retAgendado<refISO()).length,
       q:cel("Quente"), m:cel("Morno"), f:cel("Frio")};
   }).sort((a,b)=>b.val-a.val || b.n-a.n);
@@ -1574,19 +1575,32 @@ function renderDias(cr){
     <thead><tr><th>Closer</th><th class="n">Quente</th><th class="n">Morno</th><th class="n">Frio</th>
       <th class="n">Atrasados</th><th class="n">Retornos</th><th class="n">Valor</th></tr></thead>
     <tbody>${donos.map(r=>`<tr>
-      <td class="name"><span class="who">${AV(r.v,22)}${esc(r.v)}</span></td>
+      <td class="name"><span class="who"><button class="tw" data-dia="${esc(r.v)}"
+        aria-label="abrir negócios de ${esc(r.v)}">${abertosNo.has("V"+r.v)?"▾":"▸"}</button>${
+        AV(r.v,22)}${esc(r.v)}</span></td>
       <td class="n">${cx(r.q,"var(--rosa)")}</td>
       <td class="n">${cx(r.m,"var(--ambar)")}</td>
       <td class="n">${cx(r.f,"var(--peri)")}</td>
       <td class="n" style="color:${r.atras?"var(--rosa)":"inherit"}">${r.atras||'<span class="dim">—</span>'}</td>
       <td class="n">${r.n}</td>
-      <td class="n" style="color:var(--lima)">${BRL(r.val)}</td></tr>`).join("")}
+      <td class="n" style="color:var(--lima)">${BRL(r.val)}</td></tr>`
+      + (abertosNo.has("V"+r.v) ? r.arr.map(d=>{
+          const e = estadoRet(d), cor = d.tmp==="Quente"?"var(--rosa)"
+            : d.tmp==="Morno"?"var(--ambar)" : d.tmp==="Frio"?"var(--peri)":"var(--faint)";
+          return `<tr class="lvl3"><td class="name ind2" colspan="4">
+              <i class="dot" style="background:${cor}"></i>${esc(d.t)} ${linkDeal(d)}
+              <span class="dim" style="font-size:11px"> · ${esc(d.p)}</span></td>
+            <td class="n">${bolhaEst(e)}</td>
+            <td class="n">${brData(d.retAgendado)}</td>
+            <td class="n">${BRL(d.val)}</td></tr>`;
+        }).join("") : "")).join("")}
       <tr class="total"><td>Total</td>
         <td class="n">${ag.filter(d=>d.tmp==="Quente").length}</td>
         <td class="n">${ag.filter(d=>d.tmp==="Morno").length}</td>
         <td class="n">${ag.filter(d=>d.tmp==="Frio").length}</td>
         <td class="n">${passado.length}</td>
         <td class="n">${ag.length}</td><td class="n">${BRL(total)}</td></tr></tbody>`;
+  ligaSetasDia();
 }
 
 /* ==========================================================
@@ -1596,6 +1610,13 @@ function renderDias(cr){
    trabalho, carteira inteira e a lista do forecast. Agora é uma só, e os estados
    viraram botões — que é o que a aba "Carteira" fazia com cinco cartões. */
 const ORDEM_EST = ["vencido","semdata","noshow","hoje","futuro","reagendado"];
+function ligaSetasDia(){
+  el("t-dias-closer").querySelectorAll("[data-dia]").forEach(b=>b.addEventListener("click",()=>{
+    const k="V"+b.dataset.dia;
+    abertosNo.has(k)?abertosNo.delete(k):abertosNo.add(k);
+    render();
+  }));
+}
 function renderListaRet(todos){
   // A busca corta antes dos chips, então os números dos chips batem com o que a
   // tabela mostra. Buscar e clicar num estado se somam, não competem.
