@@ -52,6 +52,8 @@ export type Negocio = {
   retRealizado: string | null;
   noShow: string | null;
   diaReuniao: string | null;
+  dSal: string | null;         // Data Lead Aceito pelo Closer (SAL)
+  dSql: string | null;         // Data Qualificação (SQL)
   churn: boolean;
   reemb: number;
   dc: string | null;         // data do cancelamento
@@ -681,4 +683,48 @@ export function resumoPorCloser(rows: Negocio[]) {
         .map(([nome, x]) => ({ nome, n: x.n, contorno: x.n ? x.won / x.n : 0 })),
     };
   }).sort((a, b) => b.media - a.media);
+}
+
+/* ============================================================================
+   SAL — Sales Accepted Lead
+   ============================================================================
+   O dia em que o CLOSER aceitou o lead. Existe porque "ciclo de venda" medido
+   da criação do negócio até o ganho mistura o tempo do SDR com o do closer, e
+   cobra do closer um atraso que pode não ser dele. Da aceitação até o ganho é
+   só o tempo dele.
+
+   Vem preenchido em negócio ganho. Em negócio aberto costuma vir vazio: a API
+   v2 traz no máximo 15 campos customizados e este não está entre eles — por
+   isso as funções abaixo sempre dizem sobre quantos negócios calcularam.      */
+
+/** Da aceitação do lead até o ganho — o ciclo que é do closer. */
+export const cicloDoCloser = (d: Negocio): number | null =>
+  d.s === "won" ? difDias(d.dSal as string | null, d.dGanho) : null;
+
+/** Da qualificação até o closer aceitar — quanto o lead esperou na mão dele. */
+export const tempoDeAceite = (d: Negocio): number | null =>
+  difDias(d.dSql as string | null, d.dSal as string | null);
+
+export function salPorCloser(rows: Negocio[]) {
+  return [...new Set(rows.map(d => d.v))].map(v => {
+    const r = rows.filter(d => d.v === v);
+    const aceitos = r.filter(d => d.dSal);
+    const ciclos = r.map(cicloDoCloser).filter((x): x is number => x != null && x >= 0);
+    const aceites = r.map(tempoDeAceite).filter((x): x is number => x != null && x >= 0);
+    const won = r.filter(d => d.s === "won");
+    const media = (a: number[]) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+    return {
+      v,
+      negocios: r.length,
+      /* sem isto o número engana: média de 3 negócios não é a média do closer */
+      comSal: aceitos.length,
+      cobertura: r.length ? aceitos.length / r.length : 0,
+      aceitos: aceitos.length,
+      ganhos: won.length,
+      convAceitos: aceitos.length ? won.filter(d => d.dSal).length / aceitos.length : null,
+      cicloCloser: media(ciclos), nCiclo: ciclos.length,
+      aceite: media(aceites), nAceite: aceites.length,
+    };
+  }).filter(x => x.negocios)
+    .sort((a, b) => (a.cicloCloser ?? 1e9) - (b.cicloCloser ?? 1e9));
 }

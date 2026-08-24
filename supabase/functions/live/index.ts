@@ -656,6 +656,12 @@ function mapear(m: Meta, d: any, itens: any[] | undefined, an: any, hoje: string
     noShow: dia(cf(d, CAMPOS.noShow)),
     diaReuniao: dia(cf(d, CAMPOS.diaReuniao)),
     diaOpp: dia(cf(d, CAMPOS.diaOpp)),
+    /* SAL = Sales Accepted Lead: o dia em que o CLOSER aceitou o lead. Estava
+       declarado em CAMPOS desde sempre e o mapear() nunca lia, então nunca
+       chegou na tela. Serve para separar o ciclo do closer do ciclo do SDR:
+       "criação → ganho" mistura o tempo dos dois; "SAL → ganho" é só o dele. */
+    dSal: dia(cf(d, CAMPOS.dataSal)),
+    dSql: dia(cf(d, CAMPOS.dataSql)),
     precoLista: precoDeTabela(m, p, itens),
     itens: (itens ?? []).map((i) => ({
       nome: i.name ?? i.product?.name ?? null,
