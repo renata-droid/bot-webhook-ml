@@ -387,13 +387,8 @@ async function atividades(de: string, ate: string, hoje: string, interesse: Set<
   for (let pagina = 0; pagina < 12; pagina++) {
     // Sem done=1: reunião que aconteceu mas ninguém marcou como concluída também
     // conta — era isso que estava escondendo metade das reuniões.
-    // A janela vai 90 dias ALÉM do "Até". Retorno marcado para depois do fim do
-    // período é exatamente o que precisa aparecer na tela — com end_date=ate
-    // ele ficava de fora por definição, e a agenda futura chegava vazia.
-    // Os contadores de plataforma continuam presos a [de, ate] mais abaixo,
-    // para o funil não mudar de valor por causa desta janela maior.
     const q = new URLSearchParams({
-      start_date: de, end_date: adiante(ate, 90), user_id: "0",
+      start_date: de, end_date: ate, user_id: "0",
       start: String(pagina * 500), limit: "500",
     });
     let r: any;
@@ -404,30 +399,6 @@ async function atividades(de: string, ate: string, hoje: string, interesse: Set<
     for (const a of lote) {
       const id = Number(a.deal_id);
       if (!id || !interesse.has(id)) continue;
-      const venc = dia(a.due_date);
-
-      /* A PRÓXIMA atividade em aberto é a data real do retorno. O campo "Data
-         Retorno Agendado" é uma cópia que envelhece: o closer remarca movendo a
-         atividade e não volta no campo. Foi assim que a tela mostrou 24/08 para
-         um retorno que estava marcado para o dia 26. */
-      if (!a.done && venc && venc >= hoje) {
-        const acc = porNegocio.get(id) ??
-          { plataformas: {}, reunioes: 0, proxima: null, proximaAssunto: null,
-            proximaEhReuniao: false };
-        const cand: Escolha = { quando: venc, assunto: a.subject ?? null, ehReuniao: ehReuniao(a) };
-        const atual: Escolha | null = acc.proxima
-          ? { quando: acc.proxima, assunto: acc.proximaAssunto, ehReuniao: acc.proximaEhReuniao }
-          : null;
-        if (melhorQue(atual, cand)) {
-          acc.proxima = cand.quando;
-          acc.proximaAssunto = cand.assunto;
-          acc.proximaEhReuniao = cand.ehReuniao;
-        }
-        porNegocio.set(id, acc);
-      }
-
-      // daqui para baixo é contagem do PERÍODO pedido, não da janela estendida
-      if (!venc || venc < de || venc > ate) continue;
       vistas++;
       tipos[String(a.type ?? "?")] = (tipos[String(a.type ?? "?")] ?? 0) + 1;
       if (a.conference_meeting_client) {
@@ -455,6 +426,48 @@ async function atividades(de: string, ate: string, hoje: string, interesse: Set<
     if (!r.additional_data?.pagination?.more_items_in_collection) break;
     if (pagina === 11) truncado = true;
   }
+  /* SEGUNDA varredura, separada de propósito.
+     ==========================================
+     A agenda futura é outra pergunta: "quando é o próximo retorno". Ela poderia
+     ter entrado no laço acima esticando o end_date — e foi o que eu fiz primeiro.
+     É armadilha: aquele laço tem teto de 12 páginas, e enfiar 90 dias a mais no
+     mesmo orçamento faz ele estourar e passar a perder atividade PASSADA, que é
+     o que alimenta o funil e as plataformas. Um número que estava certo viraria
+     errado por causa de uma pergunta nova.
+
+     Separada, a busca de cima continua byte a byte o que era. Esta é pequena:
+     `done=0` corta tudo que já foi concluído, e a janela começa hoje. */
+  for (let pagina = 0; pagina < 8; pagina++) {
+    const q = new URLSearchParams({
+      start_date: hoje, end_date: adiante(hoje, 90), done: "0", user_id: "0",
+      start: String(pagina * 500), limit: "500",
+    });
+    let r: any;
+    try { r = await pd(`/api/v1/activities?${q}`); }
+    catch { truncado = true; break; }
+
+    for (const a of r.data ?? []) {
+      const id = Number(a.deal_id);
+      if (!id || !interesse.has(id)) continue;
+      const venc = dia(a.due_date);
+      if (!venc || venc < hoje) continue;
+      const acc = porNegocio.get(id) ??
+        { plataformas: {}, reunioes: 0, proxima: null, proximaAssunto: null,
+          proximaEhReuniao: false };
+      const cand: Escolha = { quando: venc, assunto: a.subject ?? null, ehReuniao: ehReuniao(a) };
+      const atual: Escolha | null = acc.proxima
+        ? { quando: acc.proxima, assunto: acc.proximaAssunto, ehReuniao: acc.proximaEhReuniao }
+        : null;
+      if (melhorQue(atual, cand)) {
+        acc.proxima = cand.quando;
+        acc.proximaAssunto = cand.assunto;
+        acc.proximaEhReuniao = cand.ehReuniao;
+      }
+      porNegocio.set(id, acc);
+    }
+    if (!r.additional_data?.pagination?.more_items_in_collection) break;
+  }
+
   return { porNegocio, total, vistas, comLink, clientes, hosts, tipos, truncado };
 }
 
