@@ -1,3 +1,7 @@
+> Antes de aplicar: leia `REGRAS.md`. São as regras que valem para o dash
+> inteiro — em especial a regra 1, que já foi esquecida uma vez e nasceu como
+> bug nesta mesma página.
+
 Crie a página **Retorno**, seguindo o mesmo padrão visual das páginas que já existem
 (tema claro como padrão, cartões, tabelas e chips iguais aos do resto do dash).
 
