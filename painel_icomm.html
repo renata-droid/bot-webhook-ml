@@ -453,6 +453,13 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--card-2);padding:1
 
   <div class="grid g6 sec" id="ch-cards"></div>
 
+  <section class="card pad0 sec">
+    <div class="ch" style="padding:16px 16px 0"><h2>Retenção — quem levantou a mão</h2>
+      <span class="sub" id="ch-ret-sub"></span></div>
+    <div class="scroll"><table id="ch-ret"></table></div>
+    <div class="mini" id="ch-ret-nota" style="padding:0 16px 14px"></div>
+  </section>
+
   <section class="card sec">
     <div class="ch"><h2>Cancelamentos por mês</h2>
       <span class="sub" id="ch-qtd-sub">quantos, e quantos caíram logo na primeira semana</span></div>
@@ -464,18 +471,20 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--card-2);padding:1
     <div id="ch-culpa"></div>
   </section>
 
-  <section class="card sec">
-    <div class="ch"><h2>Cancelamentos por closer</h2>
-      <span class="sub">quem vende e o cliente cancela</span></div>
-    <div class="rank" id="ch-rank"></div>
+  <section class="card pad0 sec">
+    <div class="ch" style="padding:16px 16px 0"><h2>Cancelamentos por closer</h2>
+      <span class="sub">quem vende e o cliente cancela · ordenado pelo valor devolvido</span></div>
+    <div class="scroll"><table id="ch-rank"></table></div>
   </section>
 
-  <div class="grid g2b sec">
-    <div class="card bars" id="ch-tempo"></div>
-    <div class="card"><div class="ch"><h2>Reembolso por Buddy</h2>
-      <span class="sub">time de CS que acompanhava o aluno</span></div>
-      <div class="rank" id="ch-buddy"></div></div>
-  </div>
+  <section class="card bars sec" id="ch-tempo"></section>
+
+  <section class="card pad0 sec">
+    <div class="ch" style="padding:16px 16px 0"><h2>Reembolso por Buddy</h2>
+      <span class="sub">time de CS que acompanhava o aluno · volume, motivo e valor</span></div>
+    <div class="scroll"><table id="ch-buddy"></table></div>
+    <div class="mini" id="ch-buddy-nota" style="padding:0 16px 14px"></div>
+  </section>
 
   <section class="card pad0 sec">
     <div class="ch" style="padding:16px 16px 0"><h2>Churn por produto</h2>
@@ -1691,19 +1700,22 @@ const DIAS_PRECOCE = 7;    // cancelou em até 7 dias do ganho = churn precoce
 const MOTIVOS_CHURN = [
   ["Arrependimento (comprou no impulso)",        "Comercial"],
   ["Desalinhamento no comercial",                "Comercial"],
+  ["Negativa contratual",                        "Comercial"],
   ["Erro de Processo (CS)",                      "CS"],
-  ["Logística ou problema e/ou marketplace",     "Operação"],
-  ["Produto do cliente",                         "Cliente"],
-  ["Problemas pessoais do cliente",              "Cliente"],
-  ["Negativa contratual",                        "Contratual"],
+  ["Produto do cliente",                         "Problema do Cliente"],
+  ["Problemas pessoais do cliente",              "Problema do Cliente"],
+  ["Logística ou problema e/ou marketplace",     "Logística/Marketplace"],
 ];
 const CULPA = new Map(MOTIVOS_CHURN);
+/* Quatro grupos, não cinco. "Negativa contratual" saiu do grupo próprio e entrou
+   em Comercial — contrato que o cliente se recusa a honrar é venda mal alinhada,
+   não uma categoria à parte. Logística/marketplace continua sozinho: não é erro
+   nosso nem problema do cliente, é a operação em volta. */
 const AREAS = [
-  ["Comercial",  "var(--rosa)",  "venda no impulso ou promessa desalinhada"],
-  ["CS",         "var(--ambar)", "falha no processo de acompanhamento"],
-  ["Operação",   "var(--ciano)", "logística ou marketplace"],
-  ["Cliente",    "var(--peri)",  "motivo fora do nosso alcance"],
-  ["Contratual", "var(--oliva)", "negativa contratual"],
+  ["Comercial",             "var(--rosa)",  "venda no impulso, promessa desalinhada ou negativa contratual"],
+  ["CS",                    "var(--ambar)", "falha no processo de acompanhamento"],
+  ["Problema do Cliente",   "var(--peri)",  "motivo fora do nosso alcance"],
+  ["Logística/Marketplace", "var(--ciano)", "logística, frete ou conta no marketplace"],
 ];
 const areaDe = m => CULPA.get(m) ?? "Não informado";
 
@@ -1773,24 +1785,44 @@ function renderPgChurn(rows){
 
   renderChurnQtd12();
   renderChurnCulpa(cs);
+  renderRetencao();
 
   /* ---------- ranking por closer ---------- */
+  /* Ordenado pelo DINHEIRO DEVOLVIDO, não pela contagem. Três cancelamentos de
+     R$ 500 e um de R$ 12 mil não são o mesmo problema, e a contagem sozinha
+     colocava o primeiro caso na frente. As duas medidas ficam na tabela: quem
+     quiser ler por volume tem a coluna ao lado. */
   const nomes = [...new Set([...rows.map(d=>d.v), ...cs.map(d=>d.v)])];
   const closers = nomes.map(v=>{
     const c = cs.filter(d=>d.v===v), g = ganhos.filter(d=>d.v===v);
-    return {v, n:c.length, ganhos:g.length, reemb:c.reduce((a,d)=>a+(d.reemb||0),0),
+    return {v, n:c.length, ganhos:g.length,
+            reemb:c.reduce((a,d)=>a+(d.reemb||0),0),
+            contrato:c.reduce((a,d)=>a+(d.val||0),0),
+            precoce:c.filter(ehPrecoce).length,
             taxa: g.length ? c.length/g.length : 0};
-  }).filter(x=>x.ganhos||x.n).sort((a,b)=>b.n-a.n || b.taxa-a.taxa);
-  const maxN = Math.max(1,...closers.map(x=>x.n));
-  el("ch-rank").innerHTML = closers.length ? closers.map((x,i)=>`<div class="rk">
-      <span class="pos">${i+1}º</span>${AV(x.v,34)}
-      <span><span class="nm">${esc(x.v)}</span>
-        <span class="sb"> · ${x.ganhos} ganhos${x.n?` · ${PCT(x.taxa)} cancelaram`:" · nenhum churn"}${
-          x.reemb?` · ${BRL(x.reemb)} devolvido`:""}</span></span>
-      <span class="vl" style="color:${x.n?"var(--rosa)":"var(--oliva)"}">${x.n||"—"}</span>
-      <span class="bar"><span class="fl" style="width:${x.n/maxN*100}%;
-        background:${x.n?"linear-gradient(90deg,var(--rosa),var(--ambar))":"var(--card-2)"}"></span></span>
-    </div>`).join("") : '<div class="empty">Nenhum ganho no período</div>';
+  }).filter(x=>x.ganhos||x.n)
+    .sort((a,b)=>b.reemb-a.reemb || b.n-a.n || b.taxa-a.taxa);
+  const T = closers.reduce((a,x)=>({n:a.n+x.n, ganhos:a.ganhos+x.ganhos,
+    reemb:a.reemb+x.reemb, contrato:a.contrato+x.contrato, precoce:a.precoce+x.precoce}),
+    {n:0,ganhos:0,reemb:0,contrato:0,precoce:0});
+  el("ch-rank").innerHTML = closers.length
+    ? `<thead><tr><th>Closer</th><th class="n">Ganhos</th><th class="n">Cancelamentos</th>
+        <th class="n">Precoce</th><th class="n">% que cancelou</th>
+        <th class="n">Contratos cancelados</th><th class="n">Reembolsado</th></tr></thead>
+      <tbody>${closers.map(x=>`<tr>
+        <td class="name"><span class="who">${AV(x.v,22)}${esc(x.v)}</span></td>
+        <td class="n">${x.ganhos}</td>
+        <td class="n" style="color:${x.n?"var(--rosa)":"var(--oliva)"}">${x.n||"—"}</td>
+        <td class="n" style="color:${x.precoce?"var(--rosa)":"inherit"}">${x.precoce||'<span class="dim">—</span>'}</td>
+        <td class="n" style="color:${x.taxa>META_CHURN?"var(--rosa)":"inherit"}">${x.ganhos?PCT(x.taxa):'<span class="dim">—</span>'}</td>
+        <td class="n">${x.contrato?BRL(x.contrato):'<span class="dim">—</span>'}</td>
+        <td class="n" style="color:${x.reemb?"var(--rosa)":"inherit"};font-weight:600">${
+          x.reemb?BRL(x.reemb):'<span class="dim">—</span>'}</td></tr>`).join("")}
+        <tr class="total"><td>Total</td><td class="n">${T.ganhos}</td><td class="n">${T.n}</td>
+          <td class="n">${T.precoce}</td>
+          <td class="n">${T.ganhos?PCT(T.n/T.ganhos):"—"}</td>
+          <td class="n">${BRL(T.contrato)}</td><td class="n">${BRL(T.reemb)}</td></tr></tbody>`
+    : '<tbody><tr><td class="empty">Nenhum ganho no período</td></tr></tbody>';
 
   /* ---------- motivos ---------- */
   /* ---------- quanto tempo até cancelar ---------- */
@@ -1806,25 +1838,46 @@ function renderPgChurn(rows){
         i===0?";background:linear-gradient(90deg,var(--rosa),var(--ambar))":""}"></span></span></div>`;
   }).join("") + (dur.length?"":`<div class="vazio">Sem data de ganho ou de cancelamento</div>`);
 
-  /* ---------- reembolso por Buddy ---------- */
+  /* ---------- reembolso por Buddy ----------
+     Virou tabela para caber o motivo. Sem ele o bloco dizia quanto o Buddy
+     devolveu, mas não POR QUE — e é o porquê que diz se a conversa é com o CS,
+     com o comercial ou com a operação. O campo é de múltipla escolha, então um
+     cancelamento pode aparecer em mais de um motivo. */
   const comBuddy = cs.filter(d=>d.buddy);
   const buddies = [...new Set(comBuddy.map(d=>d.buddy))].map(b=>{
     const r = comBuddy.filter(d=>d.buddy===b);
-    return {b, n:r.length, reemb:r.reduce((a,d)=>a+(d.reemb||0),0),
+    const mot = {};
+    r.forEach(d=>(d.cm?.length?d.cm:["Não informado"]).forEach(x=>mot[x]=(mot[x]||0)+1));
+    return {b, n:r.length, mot,
+            reemb:r.reduce((a,d)=>a+(d.reemb||0),0),
             val:r.reduce((a,d)=>a+d.val,0), precoce:r.filter(ehPrecoce).length};
   }).sort((a,b)=>b.reemb-a.reemb || b.n-a.n);
-  const maxB = Math.max(1,...buddies.map(x=>x.reemb||x.n));
-  el("ch-buddy").innerHTML = buddies.length ? buddies.map((x,i)=>`<div class="rk">
-      <span class="pos">${i+1}º</span>${AV(x.b,34)}
-      <span><span class="nm">${esc(x.b)}</span>
-        <span class="sb"> · ${x.n} cancelamento(s)${x.precoce?` · ${x.precoce} precoce`:""}</span></span>
-      <span class="vl" style="color:var(--rosa)">${x.reemb?BRL(x.reemb):"—"}</span>
-      <span class="bar"><span class="fl" style="width:${(x.reemb||x.n)/maxB*100}%;
-        background:linear-gradient(90deg,var(--rosa),var(--peri))"></span></span>
-    </div>`).join("")
-    + (cs.length-comBuddy.length ? `<div class="mini" style="margin-top:10px">
-        ${cs.length-comBuddy.length} cancelamento(s) sem Buddy preenchido.</div>` : "")
-    : '<div class="empty">Nenhum cancelamento com Buddy preenchido</div>';
+  const chipMot = mot => Object.entries(mot).sort((a,b)=>b[1]-a[1]).map(([k,n])=>{
+    const cor = {Comercial:"var(--rosa)", CS:"var(--ambar)",
+                 "Problema do Cliente":"var(--peri)",
+                 "Logística/Marketplace":"var(--ciano)"}[areaDe(k)] ?? "var(--faint)";
+    return `<span class="objchip" title="${esc(areaDe(k))}"
+      style="background:color-mix(in srgb,${cor} 16%,transparent);color:${cor}">${esc(k)} ${n}</span>`;
+  }).join("");
+  const TB = buddies.reduce((a,x)=>({n:a.n+x.n, precoce:a.precoce+x.precoce,
+    val:a.val+x.val, reemb:a.reemb+x.reemb}), {n:0,precoce:0,val:0,reemb:0});
+  el("ch-buddy").innerHTML = buddies.length
+    ? `<thead><tr><th>Buddy</th><th class="n">Cancelamentos</th><th class="n">Precoce</th>
+        <th style="min-width:260px">Motivo</th>
+        <th class="n">Contratos</th><th class="n">Reembolsado</th></tr></thead>
+      <tbody>${buddies.map(x=>`<tr>
+        <td class="name"><span class="who">${AV(x.b,22)}${esc(x.b)}</span></td>
+        <td class="n">${x.n}</td>
+        <td class="n" style="color:${x.precoce?"var(--rosa)":"inherit"}">${x.precoce||'<span class="dim">—</span>'}</td>
+        <td style="white-space:normal">${chipMot(x.mot)}</td>
+        <td class="n">${x.val?BRL(x.val):'<span class="dim">—</span>'}</td>
+        <td class="n" style="color:var(--rosa);font-weight:600">${x.reemb?BRL(x.reemb):'<span class="dim">—</span>'}</td></tr>`).join("")}
+        <tr class="total"><td>Total</td><td class="n">${TB.n}</td><td class="n">${TB.precoce}</td>
+          <td></td><td class="n">${BRL(TB.val)}</td><td class="n">${BRL(TB.reemb)}</td></tr></tbody>`
+    : '<tbody><tr><td class="empty">Nenhum cancelamento com Buddy preenchido</td></tr></tbody>';
+  el("ch-buddy-nota").innerHTML = cs.length-comBuddy.length
+    ? `${cs.length-comBuddy.length} cancelamento(s) sem Buddy preenchido ficaram de fora desta tabela.`
+    : "";
 
   /* ---------- produto ---------- */
   const prods=[...new Set([...ganhos.map(d=>d.p), ...cs.map(d=>d.p)])]
@@ -1866,6 +1919,110 @@ function renderPgChurn(rows){
     <th class="n">Cancelou</th><th class="n">Durou</th></tr></thead>
     <tbody>${lin||'<tr><td colspan="10" class="empty">Nenhum cancelamento no período</td></tr>'}</tbody>`;
 
+}
+
+/* ==========================================================
+   RETENÇÃO — quem levantou a mão e ainda dá para segurar
+   ==========================================================
+   O resto desta página é autópsia: conta quem já cancelou. Isto aqui é o
+   contrário — o cliente reclamou, o CS está em cima, e ainda não virou churn.
+
+   Duas fontes, nenhuma das duas pronta ainda:
+   · "Status de Retenção" (Em processo / Perdido / Retido) — campo que ainda vai
+     ser criado no Pipedrive. Como retenção só existe em quem comprou, ele chega
+     de graça pela rota dos negócios ganhos, sem disputar as 15 vagas de campo
+     customizado que a API v2 impõe aos abertos e perdidos.
+   · Nota escrita à mão pelo CS no corpo do negócio. Hoje a Edge Function lê as
+     anotações e joga fora tudo que não é a análise de call da IA — nota de CS
+     não chega aqui.
+
+   POR QUE ESTA TABELA IGNORA O FILTRO DE PERÍODO DO TOPO: quem reclama hoje
+   comprou meses atrás. O deal 72849 foi ganho em 27/01 e a nota é de 08/07 — com
+   o painel filtrado em agosto ele não é ganho, não é perdido e não está aberto.
+   Sumiria da tela justamente na hora em que interessa. */
+const ROTULO_RET = { "Em processo":"b-hoje", "Retido":"b-realizado", "Perdido":"b-vencido" };
+
+/* SEMENTE: um caso só, combinado como teste, transcrito do próprio negócio no
+   Pipedrive. Serve para ver a tela de pé antes de o campo e a leitura de notas
+   existirem. Quando a Edge Function passar a mandar `statusRet` e `notasCS`,
+   fontesDeRetencao() prefere o dado real sozinha — aí é só apagar esta constante. */
+const SEMENTE_RETENCAO = [{
+  id: 72849,
+  t: "Victor Marques 0083",
+  v: "Nickolas Rocha",
+  buddy: "Andrea Francisco",
+  p: "Consultoria",
+  val: 12738,
+  dGanho: "2026-01-27",
+  status: null,
+  notas: [{
+    em: "2026-07-08",
+    autor: "Andrea Francisco",
+    texto: "Cliente me respondeu em 07/07 se dizendo insatisfeito com os resultados, "
+         + "estou tentando entender o ocorrido, para contornar.",
+  }],
+}];
+
+function fontesDeRetencao(){
+  // negócio ganho de qualquer origem: o do período e o do histórico de 12 meses
+  const universo = [...D, ...CHURN12];
+  const vistos = new Set();
+  const reais = universo.filter(d=>{
+    if(vistos.has(d.id)) return false;
+    vistos.add(d.id);
+    return d.statusRet || d.notasCS?.length;
+  }).map(d=>({ id:d.id, t:d.t, v:d.v, buddy:d.buddy, p:d.p, val:d.val,
+               dGanho:d.dGanho, status:d.statusRet ?? null, notas:d.notasCS ?? [] }));
+  return reais.length ? { linhas:reais, semente:false }
+                      : { linhas:SEMENTE_RETENCAO, semente:true };
+}
+
+const PESO_RET = { "Em processo":0, "Perdido":1, "Retido":2 };
+function renderRetencao(){
+  const { linhas, semente } = fontesDeRetencao();
+  const ultima = d => [...(d.notas||[])].sort((a,b)=>String(b.em).localeCompare(String(a.em)))[0];
+
+  const lista = [...linhas].sort((a,b)=>
+    (PESO_RET[a.status] ?? -1) - (PESO_RET[b.status] ?? -1)
+    || String(ultima(b)?.em ?? "").localeCompare(String(ultima(a)?.em ?? ""))
+    || b.val - a.val);
+
+  const emProcesso = lista.filter(x=>x.status==="Em processo").length;
+  const emRisco = lista.reduce((a,x)=>a+(x.val||0),0);
+  el("ch-ret-sub").textContent = lista.length
+    ? `${lista.length} cliente(s) · ${BRL(emRisco)} em jogo`
+      + (emProcesso?` · ${emProcesso} em processo`:"")
+    : "ninguém sinalizado";
+
+  el("ch-ret").innerHTML = lista.length
+    ? `<thead><tr><th>Cliente</th><th>Closer</th><th>Buddy</th><th>Produto</th>
+        <th>Status</th><th style="min-width:320px">Última nota do CS</th>
+        <th class="n">Valor</th><th class="n">Ganho em</th></tr></thead>
+      <tbody>${lista.map(x=>{
+        const n = ultima(x);
+        return `<tr>
+          <td class="name">${esc(x.t)} ${linkDeal(x)}</td>
+          <td>${x.v?`<span class="who">${AV(x.v,22)}${esc(x.v)}</span>`:'<span class="dim">—</span>'}</td>
+          <td>${x.buddy?`<span class="who">${AV(x.buddy,22)}${esc(x.buddy)}</span>`:'<span class="dim">—</span>'}</td>
+          <td class="dim" style="white-space:normal;min-width:140px">${esc(x.p)}</td>
+          <td>${x.status?`<span class="bolha ${ROTULO_RET[x.status]||"b-semdata"}">${esc(x.status)}</span>`
+                        :'<span class="bolha b-semdata">Sem status</span>'}</td>
+          <td style="white-space:normal">${n
+            ? `${esc(n.texto)}<div class="mini">${esc(n.autor||"—")} · ${brData(n.em)}</div>`
+            : '<span class="dim">—</span>'}</td>
+          <td class="n">${BRL(x.val||0)}</td>
+          <td class="n">${brData(x.dGanho)}</td></tr>`;
+      }).join("")}</tbody>`
+    : '<tbody><tr><td class="empty">Ninguém sinalizado para retenção</td></tr></tbody>';
+
+  el("ch-ret-nota").innerHTML = semente
+    ? `<b style="color:var(--ambar)">Amostra, não dado ao vivo.</b> O campo
+       <b>Status de Retenção</b> ainda não existe no Pipedrive e a Edge Function ainda
+       não lê nota escrita pelo CS — hoje ela descarta toda anotação que não seja a
+       análise de call da IA. Esta linha é o negócio 72849, transcrito à mão, só para
+       validar o formato. Assim que as duas fontes existirem, a tabela se enche sozinha.`
+    : `Fora do filtro de período do topo, de propósito: quem reclama hoje comprou meses
+       atrás e o recorte por data de ganho o esconderia.`;
 }
 
 /* Doze meses de cancelamento, sempre — é a única forma de ver se o churn está
@@ -1962,6 +2119,15 @@ function renderChurnQtd12(){
   const tot=dados.reduce((a,d)=>a+d.n,0), totP=dados.reduce((a,d)=>a+d.precoce,0);
   const totR=dados.reduce((a,d)=>a+d.reemb,0);
   const pior=[...dados].sort((a,b)=>b.n-a.n)[0];
+  /* Média do ano: reembolsado ÷ MESES DECORRIDOS, não ÷ 12. Em agosto, dividir
+     por doze jogaria a média um terço para baixo e faria o ano parecer melhor do
+     que é. dados.length já é jan → mês do filtro.
+     Não vira linha no gráfico de propósito: o eixo aqui é quantidade de
+     cancelamentos e a média é dinheiro — desenhar as duas na mesma escala
+     inventaria uma comparação que não existe. */
+  const nMeses = dados.length;
+  const mediaMes = nMeses ? totR/nMeses : 0;
+  const mediaQtd = nMeses ? tot/nMeses : 0;
 
   el("ch-qtd12").innerHTML=`
     <div class="legend" style="margin-bottom:12px;gap:18px;flex-wrap:wrap">
@@ -1971,6 +2137,17 @@ function renderChurnQtd12(){
         display:inline-block;margin-right:7px"></i>Precoce · até ${DIAS_PRECOCE} dias</span>
       <span style="margin-left:auto;font-family:var(--mono)">${tot} em ${anoDoFiltro()} ·
         ${totP} precoce${tot?` (${PCT(totP/tot)})`:""} · ${BRL(totR)} devolvido</span>
+    </div>
+    <div class="stat" style="margin-bottom:12px;display:flex;align-items:baseline;
+      gap:10px;flex-wrap:wrap">
+      <span class="k" style="margin:0">Média do ano</span>
+      <b style="font-family:var(--mono);font-size:20px;font-weight:600;
+        color:var(--rosa)">${BRL(mediaMes)}<span
+        style="font-size:12px;color:var(--faint)">/mês</span></b>
+      <span class="mini">${BRL(totR)} devolvido ÷ ${nMeses} ${nMeses===1?"mês":"meses"}
+        de ${anoDoFiltro()}</span>
+      <span class="mini" style="margin-left:auto">${NUM(mediaQtd)} cancelamento(s)/mês
+        na média</span>
     </div>
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"
       style="width:100%;height:230px;display:block"
