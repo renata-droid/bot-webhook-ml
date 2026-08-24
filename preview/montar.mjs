@@ -57,6 +57,9 @@ for (let i=0;i<5;i++)  deals.push(mk({                                        //
   buddy:BUD[i%3], cm:[MOT[i%5], MOT[(i+2)%5]] }));
 deals.push(mk({ s:"open", saude:"Risco", et:"Retorno Realizado", retRealizado:dd(-1) }));
 
+// a janela que esta "consulta" cobre — o painel usa isto para decidir se um
+// filtro mais estreito precisa voltar ao Pipedrive ou só redesenhar
+window.__janela = { de: dd(-23), ate: H };
 window.__painel({
   deals, periodo:{ de:dd(-23), ate:H }, geradoEm:new Date().toISOString(),
   conferencia:{ ae_ganhos:{ negocios:9, valor:143973, por_vendedor:{} } },

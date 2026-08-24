@@ -109,12 +109,14 @@ cmp("corte por closer: agendados de cada um",
    passar a falhar, alguém aplicou o recorte de intervalo na carteira de novo. */
 await aba.click('#abas-ret .aba[data-aba="carteira"]');
 const hoje = await aba.evaluate(() => new Date().toISOString().slice(0, 10));
-// mexo no state e redesenho à mão: preencher o campo de data no painel dispara
-// uma nova consulta ao Pipedrive, que aqui não existe. (É esse refetch a cada
-// mudança de data que faz a carteira aberta vir diferente a cada filtro na
-// produção — a varredura de abertos recomeça e para num lugar diferente.)
-await aba.evaluate(h => { state.de = h; state.ate = h; render(); }, hoje);
+// pelo caminho de verdade: mexo nos campos de data como a pessoa mexe. Se o
+// painel voltar a consultar o Pipedrive aqui, a tela fica em "consultando…" e
+// as conferências abaixo falham — que é exatamente o que se quer travar.
+await aba.fill("#f-de", hoje);
+await aba.fill("#f-ate", hoje);
 await aba.waitForTimeout(400);
+cmp("um dia: não foi consultar o Pipedrive de novo", false,
+  /consultando/i.test(await aba.textContent("#sub")));
 
 const f1 = { ...f, de: hoje, ate: hoje };
 const cr1 = N.carteiraRet(deals, f1);
@@ -128,6 +130,8 @@ cmp("um dia: gráfico bate com a tela",
 cmp("um dia: os cartões continuam contando a carteira inteira",
   (await aba.$$eval("#ret-acao .stat .v", e => e.map(x => Number(x.textContent)))),
   N.cartoesRet(cr1, f1).map(c => c.n));
+
+await aba.screenshot({ path: "preview/saida/retorno-um-dia.png", fullPage: false });
 
 await navegador.close();
 console.log(ok ? "\ntudo bate com a tela" : "\nTEM DIFERENÇA — o módulo não pode ir para o Lovable assim");

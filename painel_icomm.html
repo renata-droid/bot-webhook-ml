@@ -2729,8 +2729,23 @@ function render(){
 ["de","ate","basedata","orig","vend","prod","canal","lead"].forEach(k=>{
   el("f-"+k).addEventListener("change", e=>{
     state[k]=e.target.value; state.kpi="";
-    // mexer no período muda o que o Pipedrive precisa devolver
-    if(k==="de"||k==="ate"){ if(window.__recarregar) window.__recarregar(); return; }
+    if(k==="de"||k==="ate"){
+      /* ESTREITAR o período não pede consulta nova. O dia 24 já veio dentro de
+         01/08 a 24/08 — filtrar o dia é recortar o que está na mão.
+
+         Antes toda mexida na data refazia a busca no Pipedrive, e a varredura
+         de negócios abertos não devolve sempre o mesmo conjunto: a conta tem
+         mais de 15 mil abertos e a leitura para onde dá. Resultado: filtrar o
+         dia 24 trazia uma tela vazia, com os mesmos retornos do dia 24 visíveis
+         um segundo antes no filtro do mês. A mesma pergunta, duas respostas.
+
+         Agora a resposta do dia é sempre um pedaço da resposta do período. Só
+         volta ao Pipedrive quando o novo recorte pede dado que não veio. */
+      const j = window.__janela;
+      if(j && state.de>=j.de && state.ate<=j.ate){ render(); return; }
+      if(window.__recarregar) window.__recarregar();
+      return;
+    }
     render();
   });
 });
@@ -2948,6 +2963,9 @@ async function carregar(){
     avisos.push(`Consulta ao Pipedrive em ${j.ms} ms · ${j.contagem.total} negócios ` +
       `(${j.contagem.ganhos} ganhos, ${j.contagem.perdidos} perdidos, ${j.contagem.abertos} abertos).`);
 
+    // o que esta resposta cobre — é o que decide se o próximo filtro precisa
+    // voltar ao Pipedrive ou só redesenhar
+    window.__janela = { de, ate };
     window.__painel({ ...j, avisos });
   }catch(err){
     $("sub").textContent = "Erro: " + err.message;
