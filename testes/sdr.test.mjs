@@ -35,10 +35,15 @@ const negocios = [
   /* O CASO QUE JUSTIFICA A JANELA DE 180 DIAS: criado há 5 meses, conectado há
      muito tempo, e só agora o closer aceitou. Conta como SAL do período. Com
      janela curta ele nem seria lido. */
-  mk({ add_time: dd(-150) + " 09:00:00", [C.dConexao]: dd(-145), [C.dSql]: dd(-140),
+  /* O CASO QUE A JANELA DE CRIACAO PERDIA: criado ha 5 meses, e o closer so
+     aceitou anteontem. Conta como SAL do periodo, e so aparece porque a busca
+     e por quem foi MEXIDO — nao por quem foi criado. */
+  mk({ add_time: dd(-150) + " 09:00:00", mexidoEm: dd(-2),
+       [C.dConexao]: dd(-145), [C.dSql]: dd(-140),
        [C.dSal]: dd(-2), [C.sdr]: 31, [C.lead]: 43, status: "won" }),
   // fora do período dos dois lados — não pode entrar em conta nenhuma
-  mk({ add_time: dd(-40) + " 09:00:00", [C.dConexao]: dd(-35), [C.dSql]: dd(-34) }),
+  mk({ add_time: dd(-40) + " 09:00:00", mexidoEm: dd(-34),
+       [C.dConexao]: dd(-35), [C.dSql]: dd(-34) }),
   // sem SDR preenchido
   mk({ [C.dConexao]: dd(-6), [C.sdr]: null }),
 ];
@@ -53,17 +58,13 @@ const dublê = (u) => {
   ] };
   if (p === "/api/v1/users") return { data: [
     { id: 11, name: "Nickolas Rocha" }, { id: 31, name: "Leticia" }, { id: 32, name: "Gabriel Frizzo" }] };
-  if (p === "/api/v1/deals/timeline") {
-    // a timeline filtra por add_time: só devolve o que cai na janela pedida
-    const ini = s.get("start_date");
-    const meses = Number(s.get("amount"));
-    const f = new Date(Date.parse(ini + "T12:00:00Z"));
-    f.setUTCMonth(f.getUTCMonth() + meses);
-    const fim = f.toISOString().slice(0, 10);
-    return { data: [{ deals: negocios.filter((d) => {
-      const c = d.add_time.slice(0, 10);
-      return c >= ini && c < fim;
-    }) }] };
+  if (p === "/api/v2/deals") {
+    /* O v2 com updated_since devolve o que foi MEXIDO desde a data. O dublê
+       usa `mexidoEm` de cada negócio para simular isso — inclusive o lead
+       velho, criado ha meses e conectado agora. */
+    const desde = (s.get("updated_since") || "").slice(0, 10);
+    return { data: negocios.filter((d) => (d.mexidoEm ?? d.add_time.slice(0, 10)) >= desde),
+             additional_data: {} };
   }
   return undefined;
 };
@@ -83,35 +84,25 @@ ok("conta cada etapa pela SUA data, não pela criação", () =>
   assert.deepEqual(
     { c: json.contagem.conectados, sql: json.contagem.sql,
       ops: json.contagem.ops, sal: json.contagem.sal },
-    // 704 nasceu ha 150 dias: fora da janela padrao de 90. 705 tem SQL fora do periodo.
-    { c: 4, sql: 2, ops: 1, sal: 1 }));
+    // 705 tem todas as datas fora do periodo: e lido e descartado
+    { c: 4, sql: 2, ops: 1, sal: 2 }));
 
-/* O CUSTO DA JANELA, medido em vez de suposto.
-   A busca e por data de CRIACAO, mas a pergunta e sobre datas que vem depois.
-   Um lead criado ha 150 dias que o closer aceitou anteontem conta como SAL de
-   hoje — e so aparece se a janela alcancar o nascimento dele.
+ok("o lead velho que so agora virou SAL entra", () =>
+  assert.ok(json.negocios.some((d) => d.id === 704 && d.dSal === dd(-2)),
+    "o negocio criado ha 150 dias nao foi lido"));
 
-   O padrao e 90 dias porque 180 fazia a funcao estourar o limite de recursos
-   do Supabase. Quem precisar de mais estica com ?janela=180. Este par de
-   conferencias existe para ninguem descobrir isso por acidente. */
-ok("com a janela padrao, o lead de 150 dias atras NAO entra", () =>
-  assert.ok(!json.negocios.some((d) => d.id === 704),
-    "entrou sem a janela alcancar"));
-
-const largo = await roda(empacota("supabase/functions/sdr/index.ts", "sdr-largo"),
-  dublê, { de: DE, ate: ATE, extra: "&janela=180" });
-
-ok("com ?janela=180 ele entra, e vira SAL do periodo", () => {
-  assert.ok(largo.json.negocios.some((d) => d.id === 704 && d.dSal === dd(-2)));
-  assert.equal(largo.json.contagem.sal, 2);
-  assert.equal(largo.json.varredura.janela_dias, 180);
+ok("nao busca por criacao: pede o que foi MEXIDO no periodo", () => {
+  const v2 = chamadas.filter((c) => c.includes("/api/v2/deals"));
+  assert.ok(v2.length > 0, "nenhuma chamada ao v2");
+  assert.ok(v2.every((c) => c.includes("updated_since")), v2.join(" | "));
+  assert.ok(!chamadas.some((c) => c.includes("timeline")), "ainda usa a timeline");
 });
 
 ok("negócio fora do período não entra em conta nenhuma", () =>
   assert.ok(!json.negocios.some((d) => d.id === 705)));
 
 ok("só devolve quem participa de alguma etapa — não meio ano de negócios", () =>
-  assert.equal(json.negocios.length, 4));   // o 704 saiu com a janela de 90
+  assert.equal(json.negocios.length, 5));
 
 ok("o SDR vem pelo nome", () =>
   assert.deepEqual([...new Set(json.negocios.map((d) => d.sdr))].sort(),
@@ -126,13 +117,17 @@ ok("quem não tem SDR aparece agrupado, e vira aviso", () => {
 });
 
 ok("a varredura conta o que leu", () => {
-  assert.equal(json.varredura.janela_dias, 90);
-  assert.ok(json.varredura.blocos >= 2, "blocos: " + json.varredura.blocos);
+  assert.ok(json.varredura.paginas >= 1);
+  assert.ok(json.varredura.brutos >= json.varredura.lidos);
   assert.equal(json.varredura.truncado, false);
 });
 
-ok("não encosta na API v2 — nada de limite de 15 campos", () =>
-  assert.ok(!chamadas.some((c) => c.includes("/api/v2/")), chamadas.join(" | ")));
+ok("pede no maximo 15 campos customizados por chamada", () => {
+  for (const c of chamadas.filter((x) => x.includes("/api/v2/deals"))) {
+    const cf = new URLSearchParams(c.split("?")[1]).get("custom_fields") || "";
+    assert.ok(cf.split(",").filter(Boolean).length <= 15, cf);
+  }
+});
 
 ok("traz o lead do formulario E a requalificacao do SDR, lado a lado", () => {
   const par = (id) => { const d = json.negocios.find((x) => x.id === id); return [d.lead, d.leadSql]; };

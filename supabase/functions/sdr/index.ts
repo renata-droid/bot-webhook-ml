@@ -18,7 +18,8 @@
 // campos customizados, sem limite nenhum. É o que torna esta função simples:
 // não existe "campo que não chegou".
 //
-// O preço é buscar mais negócio do que o período pede — ver JANELA abaixo.
+// Ela busca pelos negócios ATUALIZADOS no período: preencher um campo mexe no
+// negócio, então o que aconteceu no período aparece — inclusive num lead antigo.
 
 const PD_TOKEN = Deno.env.get("PIPEDRIVE_API_TOKEN")!;
 const PD_BASE = (Deno.env.get("PIPEDRIVE_BASE_URL") ?? "https://api.pipedrive.com").replace(/\/+$/, "");
@@ -42,19 +43,12 @@ const CAMPOS = {
   dSal:        "62df15f8b5a4071a910ee37b0a4b4654afbc48db",  // Data Lead Aceito pelo Closer (SAL)
 } as const;
 
-/* Quanto tempo antes do período a busca precisa começar.
-   ======================================================
-   A busca é por DATA DE CRIAÇÃO do negócio, porque é o que a timeline do v1
-   filtra. Mas a pergunta é sobre as datas de conexão, SQL, OPS e SAL, que
-   acontecem DEPOIS da criação — às vezes muito depois.
-
-   Um lead criado em março que o closer aceitou em agosto conta como SAL de
-   agosto. Com uma janela curta ele simplesmente não seria lido, e o número
-   viria menor do que o Insights sem ninguém entender por quê.
-
-   180 dias cobre com folga o ciclo real. Aumentar isto custa memória e tempo,
-   não precisão: o que passa de 180 é raro. */
-const JANELA_DIAS_PADRAO = 90;
+/* Os campos que o v2 tem que devolver. O teto é 15 por chamada; aqui são dez. */
+const CAMPOS_V2 = [
+  CAMPOS.sdr, CAMPOS.vendedor, CAMPOS.lead, CAMPOS.leadSql,
+  CAMPOS.canalConex, CAMPOS.origemContr,
+  CAMPOS.dConexao, CAMPOS.dSql, CAMPOS.dOpp, CAMPOS.dSal,
+].join(",");
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -99,11 +93,6 @@ const num = (v: any): number | null => {
 };
 const dia = (v: any) => (typeof v === "string" && v.length >= 10 ? v.slice(0, 10) : null);
 const cf = (d: any, h: string) => d?.custom_fields?.[h] ?? d?.[h] ?? null;
-const atras = (iso: string, n: number) =>
-  new Date(Date.parse(iso + "T12:00:00Z") - n * 86400000).toISOString().slice(0, 10);
-const adiante = (iso: string, n: number) =>
-  new Date(Date.parse(iso + "T12:00:00Z") + n * 86400000).toISOString().slice(0, 10);
-const DIAS_POR_BLOCO = 7;
 
 /* ---------- metadados ---------- */
 type Meta = {
@@ -149,10 +138,24 @@ const nomeUsuario = (m: Meta, v: any) => {
 };
 
 /* ---------- a busca ----------
-   Em blocos de 3 meses, e cada negócio é reduzido aos nove campos que
-   interessam ANTES de entrar no array. Guardar o negócio inteiro por meio ano
-   de criação é o que estourou a memória da `live` quando ela tentou algo
-   parecido — aqui o negócio bruto morre dentro do laço. */
+   ==============================
+   Pelos negócios ATUALIZADOS no período, e não pelos criados nele.
+
+   A pergunta é sobre datas que o time preenche: conexão, SQL, oportunidade,
+   SAL. Um negócio que teve a Data Conexão preenchida em agosto foi, por
+   definição, editado em agosto — não tem como preencher um campo sem mexer no
+   negócio. Então pedir "o que foi mexido no período" pega tudo, inclusive o
+   lead criado em março que só agora foi conectado.
+
+   A primeira versão buscava por data de CRIAÇÃO, com uma janela de 90 dias
+   para trás. Lia 15.643 negócios para ficar com 559, e ainda assim perdia os
+   antigos: dava 539 conectados onde o Insights mostrava 956.
+
+   Sim, `updated_since` é o mesmo parâmetro que derrubou a carteira aberta de
+   124 para 37 na função `live`. Lá estava errado, e o motivo importa: a
+   carteira precisa mostrar negócio antigo e PARADO, que por definição não foi
+   atualizado. Aqui é o oposto — a pergunta é sobre coisas que aconteceram no
+   período, e coisa que aconteceu deixa marca. */
 type Linha = {
   id: number; t: string; sdr: string; v: string;
   dConexao: string | null; dSql: string | null; dOpp: string | null; dSal: string | null;
@@ -162,62 +165,49 @@ type Linha = {
   s: "won" | "lost" | "open"; val: number; dCriacao: string | null;
 };
 
-async function buscar(m: Meta, desde: string, de: string, ate: string) {
-  /* O negócio é descartado AQUI DENTRO se não participa de nenhuma etapa no
-     período. Antes ele era guardado e filtrado só no fim — meio ano de
-     negócios na memória de uma vez, e a função morria com
-     WORKER_RESOURCE_LIMIT antes de responder qualquer coisa.
-
-     A busca continua sendo por data de criação, porque é o que a timeline
-     filtra; o que muda é que o que não serve morre na hora. */
-  const noPeriodo = (x: string | null) => !!x && x >= de && x <= ate;
+async function buscar(m: Meta, de: string, ate: string) {
   const linhas: Linha[] = [];
   const vistos = new Set<number>();
-  let brutos = 0, blocos = 0, truncado = false;
+  let cursor: string | null = null;
+  let paginas = 0, brutos = 0, truncado = false;
 
-  /* Blocos de poucos dias, não de meses.
-     A timeline devolve o negócio COMPLETO. Pedindo três meses de uma vez, a
-     resposta fica grande demais e o Pipedrive devolve "200 OK" com o corpo
-     vazio, sem dizer que desistiu — foi assim que a `live` amanheceu zerada um
-     dia. Aqui a janela é de meio ano, então o risco seria ainda maior. */
-  const diasTotais = Math.round(
-    (Date.parse(ate + "T12:00:00Z") - Date.parse(desde + "T12:00:00Z")) / 86400000) + 1;
+  const noPeriodo = (x: string | null) => !!x && x >= de && x <= ate;
 
-  for (let salto = 0; salto < diasTotais; salto += DIAS_POR_BLOCO) {
-    const de = adiante(desde, salto);
-    blocos++;
-    let lote: any[] = [];
-    try {
-      const q = new URLSearchParams({
-        start_date: de, interval: "day",
-        amount: String(Math.min(DIAS_POR_BLOCO, diasTotais - salto)),
-        field_key: "add_time", exclude_deleted_deals: "1",
-      });
-      const r = await pd(`/api/v1/deals/timeline?${q}`);
-      lote = (r.data ?? []).flatMap((x: any) => x.deals ?? []);
-    } catch { truncado = true; continue; }
+  for (let i = 0; i < 40; i++) {
+    const q = new URLSearchParams({
+      limit: "500",
+      updated_since: de + "T00:00:00Z",
+      custom_fields: CAMPOS_V2,
+    });
+    if (cursor) q.set("cursor", cursor);
+    let r: any;
+    try { r = await pd(`/api/v2/deals?${q}`); }
+    catch { truncado = true; break; }
+
+    const lote = r.data ?? [];
+    paginas++; brutos += lote.length;
 
     for (const d of lote) {
-      brutos++;
-      if (vistos.has(d.id)) continue;      // blocos podem se encostar
+      if (vistos.has(d.id)) continue;
       vistos.add(d.id);
-      const status: Linha["s"] =
-        d.status === "won" ? "won" : d.status === "lost" ? "lost" : "open";
+
+      /* Descartado aqui dentro se não participa de nenhuma etapa no período.
+         Guardar tudo e filtrar no fim foi o que matou a versão anterior com
+         WORKER_RESOURCE_LIMIT antes de ela responder qualquer coisa. */
       const dConexao = dia(cf(d, CAMPOS.dConexao));
       const dSql = dia(cf(d, CAMPOS.dSql));
       const dOpp = dia(cf(d, CAMPOS.dOpp));
       const dSal = dia(cf(d, CAMPOS.dSal));
       if (!noPeriodo(dConexao) && !noPeriodo(dSql) && !noPeriodo(dOpp) && !noPeriodo(dSal)) continue;
 
+      const status: Linha["s"] =
+        d.status === "won" ? "won" : d.status === "lost" ? "lost" : "open";
       linhas.push({
         id: d.id,
         t: d.title ?? "(sem título)",
         sdr: nomeUsuario(m, cf(d, CAMPOS.sdr)) ?? "Sem SDR",
         v: nomeUsuario(m, cf(d, CAMPOS.vendedor)) ?? "Sem closer",
-        dConexao,
-        dSql,
-        dOpp,
-        dSal,
+        dConexao, dSql, dOpp, dSal,
         lead: rot(m, CAMPOS.lead, cf(d, CAMPOS.lead)),
         leadSql: rot(m, CAMPOS.leadSql, cf(d, CAMPOS.leadSql)),
         canal: rot(m, CAMPOS.canalConex, cf(d, CAMPOS.canalConex)),
@@ -228,8 +218,12 @@ async function buscar(m: Meta, desde: string, de: string, ate: string) {
       });
     }
     lote.length = 0;
+
+    cursor = r.additional_data?.next_cursor ?? r.next_cursor ?? null;
+    if (!cursor) break;
+    if (i === 39) truncado = true;
   }
-  return { linhas, brutos, blocos, truncado };
+  return { linhas, brutos, paginas, truncado };
 }
 
 /* ---------- handler ---------- */
@@ -246,15 +240,8 @@ Deno.serve(async (req) => {
       new Date(Date.parse(ate) - 29 * 86400000).toISOString().slice(0, 10);
     if (de > ate) throw new Error("Período invertido: 'de' é maior que 'ate'");
 
-    /* Quantos dias antes do período a busca começa. Sai como parâmetro para
-       poder ser reduzido sem republicar: se a conta crescer e a função voltar
-       a estourar o limite de recursos, `?janela=45` responde na hora. */
-    const janela = Math.max(0, Math.min(365,
-      Number(url.searchParams.get("janela") ?? JANELA_DIAS_PADRAO) || JANELA_DIAS_PADRAO));
-
     const m = await meta();
-    const desde = atras(de, janela);
-    const { linhas, brutos, blocos, truncado } = await buscar(m, desde, de, ate);
+    const { linhas, brutos, paginas, truncado } = await buscar(m, de, ate);
 
     /* Cada etapa é contada pela SUA data dentro do período — não pela data de
        criação do negócio. É assim que o Insights conta, e é o que faz o número
@@ -272,7 +259,7 @@ Deno.serve(async (req) => {
 
     const avisos: string[] = [];
     if (truncado) avisos.push(
-      `Algum bloco da varredura falhou — os números podem estar incompletos. Recarregue.`);
+      `A varredura bateu no teto de páginas — os números podem estar incompletos.`);
     if (!conectados.length) avisos.push(
       `Nenhum negócio com <b>Data Conexão</b> no período. Confira se o campo está sendo preenchido.`);
     const semSdr = conectados.filter((d) => d.sdr === "Sem SDR").length;
@@ -292,7 +279,8 @@ Deno.serve(async (req) => {
         negocios: negocios.length,
       },
       // o que a varredura leu de fato — responde "por que veio menos do que eu esperava"
-      varredura: { desde, ate, janela_dias: janela, blocos, brutos, lidos: linhas.length, truncado },
+      // o que a varredura leu de fato — responde "por que veio menos do que eu esperava"
+      varredura: { de, ate, paginas, brutos, lidos: linhas.length, truncado },
       avisos,
       negocios,
     }, { headers: CORS });
