@@ -44,8 +44,10 @@ ok("cada etapa conta pela SUA data", () =>
 ok("o lead conectado em julho e aceito em agosto e SAL de agosto", () =>
   assert.ok(fun.sal.some(d => d.dConexao === "2026-07-10")));
 
-ok("aceite = SAL sobre conectados", () =>
-  assert.equal(fun.aceite, 2 / 4));
+ok("aceite = SAL sobre OPS, e nao sobre conectados", () => {
+  assert.equal(fun.aceite, 2 / 2);        // 2 SAL de 2 OPS
+  assert.equal(fun.taxaGeral, 2 / 4);     // a ponta a ponta continua disponivel
+});
 
 const tab = N.porSdr(rows, f);
 ok("uma linha por SDR, ordenada por SAL", () =>

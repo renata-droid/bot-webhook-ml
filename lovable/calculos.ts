@@ -1242,10 +1242,13 @@ export function funilSdr(rows: NegocioSdr[], f: FiltroSdr) {
   const taxa = (a: number, b: number) => (b ? a / b : null);
   return {
     conectados, sql, ops, sal,
-    /* Aceite = SAL ÷ conectados. É o número que dói: mostra quem manda volume
-       e quem manda lead que o closer aceita. Lead recusado é trabalho jogado
-       fora, e sem esta taxa isso não aparece em lugar nenhum. */
-    aceite: taxa(sal.length, conectados.length),
+    /* Aceite = SAL ÷ OPS. Aceite é sobre o que foi OFERECIDO ao closer: de
+       cada oportunidade passada, quantas ele aceitou. Dividir por conectados
+       misturava duas perguntas — quanto o SDR conecta e quanto do que ele
+       passa presta — e escondia a segunda, que é a que dói. */
+    aceite: taxa(sal.length, ops.length),
+    /* a ponta a ponta, que some do card de aceite mas continua sendo útil */
+    taxaGeral: taxa(sal.length, conectados.length),
     taxaSql: taxa(sql.length, conectados.length),
     taxaOps: taxa(ops.length, sql.length),
     taxaSal: taxa(sal.length, ops.length),
@@ -1265,7 +1268,8 @@ export function porSdr(rows: NegocioSdr[], f: FiltroSdr) {
     return {
       sdr,
       conectados: conectados.length, sql: sql.length, ops: ops.length, sal: sal.length,
-      aceite: conectados.length ? sal.length / conectados.length : null,
+      aceite: ops.length ? sal.length / ops.length : null,
+      taxaGeral: conectados.length ? sal.length / conectados.length : null,
       vendas: won.length,
       receita: won.reduce((a, d) => a + d.val, 0),
     };
