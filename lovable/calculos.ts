@@ -186,77 +186,55 @@ export function agg(rows: Negocio[], f: Filtros, ret?: Negocio[]) {
 
 /* ---------- meta do mês ----------
 
-   Forecast aqui não é previsão: é meta. A pergunta é "quantas oportunidades e
-   quantos ganhos eu preciso para fechar R$ 1.207.000", e não "quanto o
-   pipeline aberto deve entregar" — essa outra conta continua existindo, em
-   `forecast()`, e serve para outra coisa.
+   Forecast aqui não é previsão: é meta. "Quantas oportunidades e quantos
+   ganhos eu preciso" — e a resposta não é calculada aqui, é COPIADA.
 
-   A régua (ticket médio e conversão) NÃO sai do mês corrente. No dia 5 o mês
-   tem três ganhos, e três ganhos dizem qualquer coisa: bastava um contrato
-   grande para a meta virar 40 oportunidades. Sai de meses já fechados, que é o
-   que a operação realmente entrega.
+   A meta já é decidida todo mês no dashboard de forecast do financeiro, que
+   parte de um mês base (ago/26 saiu de jul/26) e aplica desconto, acurácia,
+   CFT e capacidade de consultor. Se o painel refizesse essa conta com a régua
+   dele, ia dar outro número — e aí a empresa teria duas metas. Então o painel
+   repete a do financeiro, e a única fonte continua sendo uma.
 
-   Trocar a meta é editar a constante abaixo. */
-export const META_MES = 1_207_000;
+   Mês novo, uma linha nova aqui, copiada dos cards SALES META, OPP META e
+   GANHOS META. Mês sem linha não inventa meta nenhuma: a tela diz que ainda
+   não foi definida. É melhor um tracinho honesto do que um número que ninguém
+   combinou. */
+export type MetaMes = { sales: number; opps: number; ganhos: number };
 
-export type Referencia = {
-  de: string; ate: string;
-  ticket: number; conv: number;
-  ganhos: number; opps: number;
+export const METAS: Record<string, MetaMes> = {
+  "2026-08": { sales: 1_207_500, opps: 330, ganhos: 85 },
 };
 
-/** A régua, tirada de um período JÁ FECHADO. */
-export function referencia(rows: Negocio[], f: Filtros): Referencia {
-  const won = rows.filter(d => d.s === "won");
-  const receita = won.reduce((a, d) => a + d.val, 0);
-  return {
-    de: f.de, ate: f.ate,
-    ticket: won.length ? receita / won.length : 0,
-    conv: rows.length ? won.length / rows.length : 0,
-    ganhos: won.length, opps: rows.length,
-  };
-}
+/* Qual mês vale para um período: o da data FINAL. Num filtro de 01/08 a 25/08
+   a meta é a de agosto. Use `mesDe(f.ate)` — a função já existe acima. */
+
+export const metaDe = (mes: string): MetaMes | null => METAS[mes] ?? null;
 
 /* O que a meta exige, e onde estamos.
 
-   `precisa` é a meta traduzida em quantidade. `feito` é o mês corrente.
-   `falta` é a diferença, nunca negativa — bateu a meta, falta zero, e não
-   "faltam -3 ganhos".
-
-   Se o período de referência não tiver ganho nenhum, ticket e conversão são
-   zero e não há conta possível: devolve null em vez de Infinity, e a tela
-   mostra tracinho. */
-export function metaDoMes(atual: Agregado, ref: Referencia) {
-  const ganhosNec = ref.ticket ? META_MES / ref.ticket : null;
-  const oppsNec = ganhosNec != null && ref.conv ? ganhosNec / ref.conv : null;
-  const falta = (nec: number | null, feito: number) =>
-    nec == null ? null : Math.max(0, nec - feito);
-  const pct = (feito: number, nec: number | null) =>
-    nec ? feito / nec : null;
+   `falta` nunca é negativo — bateu a meta, falta zero, e não "faltam −3
+   ganhos". `atingido` passa de 1 de propósito: 124% é informação. */
+export function metaDoMes(atual: Agregado, mes: string) {
+  const meta = metaDe(mes);
+  if (!meta) return null;
+  const feito = { receita: atual.receita, ganhos: atual.won, opps: atual.opp };
+  const precisa = { receita: meta.sales, ganhos: meta.ganhos, opps: meta.opps };
+  const falta = {
+    receita: Math.max(0, precisa.receita - feito.receita),
+    ganhos: Math.max(0, precisa.ganhos - feito.ganhos),
+    opps: Math.max(0, precisa.opps - feito.opps),
+  };
+  const pct = (f: number, p: number) => (p ? f / p : null);
   return {
-    meta: META_MES,
-    ref,
-    precisa: {
-      receita: META_MES,
-      ganhos: ganhosNec,
-      opps: oppsNec,
-    },
-    feito: {
-      receita: atual.receita,
-      ganhos: atual.won,
-      opps: atual.opp,
-    },
-    falta: {
-      receita: Math.max(0, META_MES - atual.receita),
-      ganhos: falta(ganhosNec, atual.won),
-      opps: falta(oppsNec, atual.opp),
-    },
-    /* o quanto estamos da meta, em cada uma das três leituras */
+    mes, meta, precisa, feito, falta,
     atingido: {
-      receita: atual.receita / META_MES,
-      ganhos: pct(atual.won, ganhosNec),
-      opps: pct(atual.opp, oppsNec),
+      receita: pct(feito.receita, precisa.receita),
+      ganhos: pct(feito.ganhos, precisa.ganhos),
+      opps: pct(feito.opps, precisa.opps),
     },
+    /* a régua que a meta embute, para a tela poder comparar com a real */
+    ticketMeta: meta.ganhos ? meta.sales / meta.ganhos : null,
+    convMeta: meta.opps ? meta.ganhos / meta.opps : null,
   };
 }
 

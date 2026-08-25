@@ -147,56 +147,35 @@ export function agg(rows: Negocio[], f: Filtros, ret?: Negocio[]) {
   };
 }
 
-export const META_MES = 1_207_000;
+export type MetaMes = { sales: number; opps: number; ganhos: number };
 
-export type Referencia = {
-  de: string; ate: string;
-  ticket: number; conv: number;
-  ganhos: number; opps: number;
+export const METAS: Record<string, MetaMes> = {
+  "2026-08": { sales: 1_207_500, opps: 330, ganhos: 85 },
 };
 
-export function referencia(rows: Negocio[], f: Filtros): Referencia {
-  const won = rows.filter(d => d.s === "won");
-  const receita = won.reduce((a, d) => a + d.val, 0);
-  return {
-    de: f.de, ate: f.ate,
-    ticket: won.length ? receita / won.length : 0,
-    conv: rows.length ? won.length / rows.length : 0,
-    ganhos: won.length, opps: rows.length,
+export const metaDe = (mes: string): MetaMes | null => METAS[mes] ?? null;
+
+export function metaDoMes(atual: Agregado, mes: string) {
+  const meta = metaDe(mes);
+  if (!meta) return null;
+  const feito = { receita: atual.receita, ganhos: atual.won, opps: atual.opp };
+  const precisa = { receita: meta.sales, ganhos: meta.ganhos, opps: meta.opps };
+  const falta = {
+    receita: Math.max(0, precisa.receita - feito.receita),
+    ganhos: Math.max(0, precisa.ganhos - feito.ganhos),
+    opps: Math.max(0, precisa.opps - feito.opps),
   };
-}
-
-export function metaDoMes(atual: Agregado, ref: Referencia) {
-  const ganhosNec = ref.ticket ? META_MES / ref.ticket : null;
-  const oppsNec = ganhosNec != null && ref.conv ? ganhosNec / ref.conv : null;
-  const falta = (nec: number | null, feito: number) =>
-    nec == null ? null : Math.max(0, nec - feito);
-  const pct = (feito: number, nec: number | null) =>
-    nec ? feito / nec : null;
+  const pct = (f: number, p: number) => (p ? f / p : null);
   return {
-    meta: META_MES,
-    ref,
-    precisa: {
-      receita: META_MES,
-      ganhos: ganhosNec,
-      opps: oppsNec,
-    },
-    feito: {
-      receita: atual.receita,
-      ganhos: atual.won,
-      opps: atual.opp,
-    },
-    falta: {
-      receita: Math.max(0, META_MES - atual.receita),
-      ganhos: falta(ganhosNec, atual.won),
-      opps: falta(oppsNec, atual.opp),
+    mes, meta, precisa, feito, falta,
+    atingido: {
+      receita: pct(feito.receita, precisa.receita),
+      ganhos: pct(feito.ganhos, precisa.ganhos),
+      opps: pct(feito.opps, precisa.opps),
     },
 
-    atingido: {
-      receita: atual.receita / META_MES,
-      ganhos: pct(atual.won, ganhosNec),
-      opps: pct(atual.opp, oppsNec),
-    },
+    ticketMeta: meta.ganhos ? meta.sales / meta.ganhos : null,
+    convMeta: meta.opps ? meta.ganhos / meta.opps : null,
   };
 }
 
