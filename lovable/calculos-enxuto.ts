@@ -865,6 +865,27 @@ export const filtraSdr = (rows: NegocioSdr[], f: FiltroSdr): NegocioSdr[] =>
                 && (!f.sdr || d.sdr === f.sdr)
                 && (!f.canal || d.canal === f.canal));
 
+export function foraDaLista(rows: NegocioSdr[], f: FiltroSdr) {
+  const fora = rows.filter(d => !ehSdr(d.sdr) && (!f.canal || d.canal === f.canal));
+  const conta = (arr: NegocioSdr[]) => ({
+    conectados: arr.filter(d => noPeriodo(d.dConexao, f)).length,
+    sql: arr.filter(d => noPeriodo(d.dSql, f)).length,
+    ops: arr.filter(d => noPeriodo(d.dOpp, f)).length,
+    sal: arr.filter(d => noPeriodo(d.dSal, f)).length,
+  });
+  const preenchido = (d: NegocioSdr) => !!String(d.sdr ?? "").trim();
+  const comNome = fora.filter(preenchido);
+  const nomes = [...new Set(comNome.map(d => d.sdr))]
+    .map(nome => ({ nome, ...conta(comNome.filter(d => d.sdr === nome)) }))
+    .filter(x => x.conectados + x.sql + x.ops + x.sal > 0)
+    .sort((a, b) => b.conectados - a.conectados || b.sal - a.sal);
+  return {
+    semCampo: conta(fora.filter(d => !preenchido(d))),
+    outroNome: conta(comNome),
+    nomes,
+  };
+}
+
 export function funilSdr(rows: NegocioSdr[], f: FiltroSdr) {
   const r = filtraSdr(rows, f);
   const conectados = r.filter(d => noPeriodo(d.dConexao, f));

@@ -1115,6 +1115,35 @@ export const filtraSdr = (rows: NegocioSdr[], f: FiltroSdr): NegocioSdr[] =>
                 && (!f.sdr || d.sdr === f.sdr)
                 && (!f.canal || d.canal === f.canal));
 
+/* O que ficou de fora, e não pode sumir calado.
+
+   O Pipedrive conta 999 conexões no mês; a página conta 707. A diferença não é
+   erro: são leads sem o campo "Vendedor SDR" e leads com um nome que não é de
+   SDR — só o `tecnologia@awsales.io` responde por 236. Sem este bloco o painel
+   mostraria 707 e ninguém saberia onde foram parar os outros 292.
+
+   Não passa por `filtraSdr` de propósito: é justamente o avesso dele. */
+export function foraDaLista(rows: NegocioSdr[], f: FiltroSdr) {
+  const fora = rows.filter(d => !ehSdr(d.sdr) && (!f.canal || d.canal === f.canal));
+  const conta = (arr: NegocioSdr[]) => ({
+    conectados: arr.filter(d => noPeriodo(d.dConexao, f)).length,
+    sql: arr.filter(d => noPeriodo(d.dSql, f)).length,
+    ops: arr.filter(d => noPeriodo(d.dOpp, f)).length,
+    sal: arr.filter(d => noPeriodo(d.dSal, f)).length,
+  });
+  const preenchido = (d: NegocioSdr) => !!String(d.sdr ?? "").trim();
+  const comNome = fora.filter(preenchido);
+  const nomes = [...new Set(comNome.map(d => d.sdr))]
+    .map(nome => ({ nome, ...conta(comNome.filter(d => d.sdr === nome)) }))
+    .filter(x => x.conectados + x.sql + x.ops + x.sal > 0)
+    .sort((a, b) => b.conectados - a.conectados || b.sal - a.sal);
+  return {
+    semCampo: conta(fora.filter(d => !preenchido(d))),
+    outroNome: conta(comNome),
+    nomes,
+  };
+}
+
 /** O funil do time. Cada etapa pela sua própria data. */
 export function funilSdr(rows: NegocioSdr[], f: FiltroSdr) {
   const r = filtraSdr(rows, f);

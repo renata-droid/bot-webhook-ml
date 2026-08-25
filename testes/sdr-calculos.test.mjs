@@ -121,5 +121,24 @@ ok("SQL, OPS e SAL saem da mesma conta, muda so a data", () => {
 ok("acento no nome nao atrapalha a lista", () =>
   assert.equal(N.ehSdr("Letícia Almeida"), true));
 
+ok("o que ficou de fora aparece separado, e fecha com o total", () => {
+  const fora = [
+    mk({ dConexao: "2026-08-12", sdr: "tecnologia@awsales.io" }),
+    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "tecnologia@awsales.io" }),
+    mk({ dConexao: "2026-08-12", sdr: "Milena Bragiatto" }),
+    mk({ dConexao: "2026-08-12", sdr: "  " }),
+  ];
+  const todos = [...rows, ...fora];
+  const f2 = N.foraDaLista(todos, f);
+  assert.equal(f2.semCampo.conectados, 1);
+  assert.equal(f2.outroNome.conectados, 3);
+  assert.equal(f2.nomes[0].nome, "tecnologia@awsales.io");
+  assert.equal(f2.nomes[0].conectados, 2);
+  // 707 = 999 - 292: o de dentro mais o de fora tem que dar o total
+  assert.equal(N.funilSdr(todos, f).conectados.length
+             + f2.semCampo.conectados + f2.outroNome.conectados,
+               todos.filter(d => d.dConexao >= f.de && d.dConexao <= f.ate).length);
+});
+
 console.log(`\n${n} conferências` + (falhou ? " — TEM FALHA" : ", todas passando"));
 process.exit(falhou ? 1 : 0);
