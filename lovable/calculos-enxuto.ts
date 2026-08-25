@@ -147,6 +147,59 @@ export function agg(rows: Negocio[], f: Filtros, ret?: Negocio[]) {
   };
 }
 
+export const META_MES = 1_207_000;
+
+export type Referencia = {
+  de: string; ate: string;
+  ticket: number; conv: number;
+  ganhos: number; opps: number;
+};
+
+export function referencia(rows: Negocio[], f: Filtros): Referencia {
+  const won = rows.filter(d => d.s === "won");
+  const receita = won.reduce((a, d) => a + d.val, 0);
+  return {
+    de: f.de, ate: f.ate,
+    ticket: won.length ? receita / won.length : 0,
+    conv: rows.length ? won.length / rows.length : 0,
+    ganhos: won.length, opps: rows.length,
+  };
+}
+
+export function metaDoMes(atual: Agregado, ref: Referencia) {
+  const ganhosNec = ref.ticket ? META_MES / ref.ticket : null;
+  const oppsNec = ganhosNec != null && ref.conv ? ganhosNec / ref.conv : null;
+  const falta = (nec: number | null, feito: number) =>
+    nec == null ? null : Math.max(0, nec - feito);
+  const pct = (feito: number, nec: number | null) =>
+    nec ? feito / nec : null;
+  return {
+    meta: META_MES,
+    ref,
+    precisa: {
+      receita: META_MES,
+      ganhos: ganhosNec,
+      opps: oppsNec,
+    },
+    feito: {
+      receita: atual.receita,
+      ganhos: atual.won,
+      opps: atual.opp,
+    },
+    falta: {
+      receita: Math.max(0, META_MES - atual.receita),
+      ganhos: falta(ganhosNec, atual.won),
+      opps: falta(oppsNec, atual.opp),
+    },
+
+    atingido: {
+      receita: atual.receita / META_MES,
+      ganhos: pct(atual.won, ganhosNec),
+      opps: pct(atual.opp, oppsNec),
+    },
+  };
+}
+
 export function serie(deals: Negocio[], f: Filtros) {
   const dias = Math.round(
     (Date.parse(f.ate + "T12:00:00") - Date.parse(f.de + "T12:00:00")) / 86400000) + 1;
