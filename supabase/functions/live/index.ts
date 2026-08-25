@@ -88,7 +88,15 @@ const CAMPOS_V2 = [
   "ee1a9a6385a9484273a765926c2307bc667f8e6d", // Data retorno realizado
   "57f999401867edd9e2b7e2cb6ec110b54846a870", // Saúde do aluno
   "2c29e719270fbfd6ecd08493148c39a00e0befba", // Data do cancelamento
-  "3f72c70e5276b453704bd0d0e75f767a48626449", // Data no-show
+  /* "Data no-show" saiu daqui para o "Dia Oportunidade" entrar — a lista tem
+     15 vagas e estava cheia.
+     Sem o Dia Oportunidade aqui, só ganho e criado-no-período traziam o campo,
+     e a coluna OPP da página Closers dava 145 onde o Pipedrive dá 322: faltava
+     todo negócio de mês anterior que virou oportunidade agora e ainda está
+     aberto ou foi perdido.
+     Data no-show: 2% preenchido, e a etapa "No Show" do funil é movida — quem
+     lê o no-show já cai na etapa quando a data falta. */
+  "395bf927e670b580aa5d012e9f242defca9f3050", // Dia Oportunidade
 ].slice(0, 15).join(",");
 // Canal de qualificação, Observação da call e Motivo do churn saíram daqui porque
 // só interessam em negócio ganho — e ganho vem pela timeline do v1, com tudo.

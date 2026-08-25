@@ -2,7 +2,7 @@
    node --experimental-strip-types testes/live.test.mjs                        */
 import { empacota, roda } from "./live-harness.mjs";
 import { execFileSync } from "node:child_process";
-import { writeFileSync, mkdtempSync } from "node:fs";
+import { writeFileSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert";
@@ -228,6 +228,20 @@ ok("nenhuma chamada pede mais de 7 dias de timeline", () => {
     .map((c) => Number(new URLSearchParams(c.split("?")[1]).get("amount")))
     .filter((x) => x > 7);
   assert.deepEqual(grandes, []);
+});
+
+ok("os abertos e os perdidos trazem o Dia Oportunidade", () => {
+  /* Lido da fonte, e não das chamadas: o v2 aceita 15 campos e a lista vive
+     cheia, então é fácil alguém empurrar o Dia Oportunidade para fora sem
+     perceber — e a coluna OPP da página Closers volta a dar 145 onde o
+     Pipedrive dá 322, sem nenhum erro na tela. */
+  const fonte = readFileSync("supabase/functions/live/index.ts", "utf8");
+  const bloco = fonte.slice(fonte.indexOf("const CAMPOS_V2 = ["));
+  const campos = bloco.slice(0, bloco.indexOf("].slice"))
+    .match(/"[0-9a-f]{40}"/g).map(x => x.slice(1, -1));
+  assert.ok(campos.includes("395bf927e670b580aa5d012e9f242defca9f3050"),
+            "Dia Oportunidade fora dos campos do v2");
+  assert.ok(campos.length <= 15, `o v2 aceita 15 campos, a lista tem ${campos.length}`);
 });
 
 console.log(`\n${n} conferências` + (falhou ? " — TEM FALHA" : ", todas passando"));
