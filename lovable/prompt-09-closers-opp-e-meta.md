@@ -1,14 +1,48 @@
 Substitua o conteúdo inteiro de `src/lib/calculos.ts` pelo código no fim desta
-mensagem e refaça os dois cards de forecast da página **Closers**.
+mensagem e faça os ajustes abaixo nas páginas **Closers** e **SDR**.
 
-Isto SUBSTITUI o prompt anterior sobre forecast. Se você chegou a implementar
-a segunda chamada ao endpoint para buscar um período de referência, **remova**:
-não é mais necessária. A meta agora é copiada, não calculada.
+Isto substitui qualquer prompt anterior sobre forecast.
 
-## O que é o forecast aqui
+# Página Closers
 
-Não é previsão, é meta — e a meta já vem decidida pelo financeiro. O arquivo
-traz uma tabela `METAS`, uma linha por mês:
+## 1. OPP passa a ser o campo "Dia Oportunidade"
+
+OPP é um campo só, o mesmo que a página SDR usa. Hoje a coluna conta pela Base
+da data e dá 458; tem que dar 322, igual ao Pipedrive e igual à página SDR.
+
+Use a nova função `oppsNoPeriodo(deals, filtro)` e passe o resultado adiante:
+
+```ts
+const noPeriodo = base(deals, filtro)
+const opps      = oppsNoPeriodo(deals, filtro)
+
+const cards  = resumoTime(noPeriodo, filtro, opps)
+const tabela = hierarquia(noPeriodo, filtro, opps)
+```
+
+`agg` também aceita o quarto argumento: `agg(rows, filtro, undefined, opps)`.
+
+Consequências, todas esperadas:
+
+- a conversão bruta cai no mesmo denominador e vai de 9,0% para perto de 12,7%
+- closer que teve oportunidade no mês e nenhum desfecho passa a aparecer na
+  tabela, com OPP preenchido e ganhos zero
+- receita, ganhos, ticket e ciclo **não mudam** — continuam sendo de quem
+  ganhou no período
+
+## 2. Sai o seletor "Base da data"
+
+Remova o campo do topo da página Closers. O valor fica fixo em desfecho
+ganho/perda (`basedata: "desfecho"`). Não mexa nas outras páginas.
+
+## 3. Saem duas colunas da tabela
+
+Remova **Receita RET** e **Receita Quente**. Só as colunas — não mexa nos
+cálculos do arquivo.
+
+## 4. Forecast OPP e Forecast Ganhos
+
+Deixam de ser projeção e passam a ser a meta do financeiro. O arquivo traz:
 
 ```ts
 export const METAS: Record<string, MetaMes> = {
@@ -16,41 +50,50 @@ export const METAS: Record<string, MetaMes> = {
 };
 ```
 
-Use assim:
+Use `metaDoMes(agregadoDoPeriodo, mesDe(filtro.ate))`. Devolve `null` quando o
+mês não está na tabela, ou `{ mes, meta, precisa, feito, falta, atingido,
+ticketMeta, convMeta }` — `precisa`, `feito`, `falta` e `atingido` têm cada um
+`receita`, `ganhos` e `opps`.
 
-```ts
-const meta = metaDoMes(agregadoDoPeriodo, mesDe(filtro.ate))
-```
+Nos **cards do topo**, dois cards novos:
 
-`metaDoMes` devolve `null` quando o mês não está na tabela, ou
-`{ mes, meta, precisa, feito, falta, atingido, ticketMeta, convMeta }` — onde
-`precisa`, `feito`, `falta` e `atingido` têm cada um `receita`, `ganhos` e `opps`.
-
-## Os dois cards
-
-**Forecast OPP**
-- número grande: `precisa.opps` (330 em agosto)
-- abaixo: `{feito.opps} feitas · faltam {falta.opps}`
-- barra fina de progresso com `atingido.opps`, com o percentual escrito
-
-**Forecast Ganhos**
-- número grande: `precisa.ganhos` (85 em agosto)
-- abaixo: `{feito.ganhos} feitos · faltam {falta.ganhos}`
-- barra de progresso com `atingido.ganhos`
-
-Rodapé dos dois, em letra pequena:
-`meta R$ {precisa.receita} · ticket R$ {ticketMeta} · conversão {convMeta}`
+- **Forecast OPP** — número grande `precisa.opps` (330); abaixo
+  `{feito.opps} feitas · faltam {falta.opps}`; barra fina de progresso com
+  `atingido.opps` e o percentual escrito
+- **Forecast Ganhos** — número grande `precisa.ganhos` (85); abaixo
+  `{feito.ganhos} feitos · faltam {falta.ganhos}`; mesma barra com
+  `atingido.ganhos`
 
 Quando `atingido` passar de 100%, a barra fica cheia e o percentual continua
 aparecendo (ex.: 124%). `falta` já vem zero nesse caso, nunca negativo.
 
-## Quando não existe meta do mês
+Quando `metaDoMes` devolver `null`, os dois cards mostram tracinho e, em letra
+pequena, `meta de {mês} ainda não definida`. Não invente número, não repita a
+meta do mês anterior, não esconda o card.
 
-`metaDoMes` devolve `null`. Nesse caso os dois cards mostram tracinho no lugar
-do número e, em letra pequena, `meta de {mês} ainda não definida`. Não invente
-número, não repita a meta do mês anterior, não esconda o card.
+Nas **colunas FCST OPP e FCST GANHOS da tabela**, mantenha o tracinho em todas
+as linhas e troque a legenda de cima para `forecast por closer aguardando
+divisão do financeiro`. A meta existe só para o time, ainda não por pessoa.
 
-## Arquivo
+# Página SDR
+
+## 5. Aceite = SAL ÷ OPS
+
+O card **% de aceite** e a coluna **% aceite** da tabela passam a usar
+`aceite`, que agora é SAL ÷ OPS. Não mude nada na chamada — o valor já vem
+certo do arquivo. O card sai de 26,9% para 83,9%.
+
+## 6. O card SAL muda de subtítulo
+
+Como o aceite virou SAL ÷ OPS, o subtítulo atual do card SAL ("83,9% das OPS")
+passaria a repetir o card de aceite. Troque esse subtítulo pelo número ponta a
+ponta, que é `taxaGeral` no retorno de `funilSdr`:
+
+`{taxaGeral} dos conectados`   → em agosto, "26,9% dos conectados"
+
+Assim a escada continua completa e nenhum número some.
+
+# Arquivo
 
 ```ts
 export type Analise = {
@@ -140,6 +183,10 @@ export const base = (deals: Negocio[], f: Filtros): Negocio[] =>
   deals.filter(d => { const r = dataRef(d, f); return !!r && r >= f.de && r <= f.ate; })
        .filter(d => filtrosComuns(d, f));
 
+export const oppsNoPeriodo = (deals: Negocio[], f: Filtros): Negocio[] =>
+  deals.filter(d => !!d.diaOpp && d.diaOpp >= f.de && d.diaOpp <= f.ate)
+       .filter(d => filtrosComuns(d, f));
+
 export const carteira = (deals: Negocio[], f: Filtros): Negocio[] =>
   deals.filter(d => d.s === "open").filter(d => filtrosComuns(d, f));
 
@@ -169,7 +216,7 @@ function cicloDe(won: Negocio[]) {
 
 export type Agregado = ReturnType<typeof agg>;
 
-export function agg(rows: Negocio[], f: Filtros, ret?: Negocio[]) {
+export function agg(rows: Negocio[], f: Filtros, ret?: Negocio[], opps?: Negocio[]) {
   const won = rows.filter(d => d.s === "won");
   const lost = rows.filter(d => d.s === "lost");
   const open = rows.filter(d => d.s === "open");
@@ -179,16 +226,17 @@ export function agg(rows: Negocio[], f: Filtros, ret?: Negocio[]) {
   const reemb = churn.reduce((a, d) => a + (d.reemb || 0), 0);
   const comNota = rows.filter(d => d.an);
   const lista = won.reduce((a, d) => a + (d.precoLista || 0), 0);
-  const conv = rows.length ? won.length / rows.length : 0;
+  const nOpp = opps ? opps.length : rows.length;
+  const conv = nOpp ? won.length / nOpp : 0;
   return {
-    opp: rows.length, won: won.length, lost: lost.length, ret: emR.length,
+    opp: nOpp, won: won.length, lost: lost.length, ret: emR.length,
     outras: open.length - open.filter(d => ETAPAS_RET(f).includes(d.et)).length,
     q: emR.filter(d => d.tmp === "Quente").length,
     m: emR.filter(d => d.tmp === "Morno").length,
     f: emR.filter(d => d.tmp === "Frio").length,
     churn: churn.length, reemb,
     conv,
-    net: rows.length ? (won.length - churn.length) / rows.length : 0,
+    net: nOpp ? (won.length - churn.length) / nOpp : 0,
     receita, receitaLiq: receita - reemb,
     ticket: won.length ? receita / won.length : 0,
     score: comNota.length ? comNota.reduce((a, d) => a + (d.an as Analise).nota, 0) / comNota.length : null,
@@ -503,37 +551,41 @@ export function perfilCloser(rows: Negocio[], v: string) {
   };
 }
 
-export function resumoTime(noPeriodo: Negocio[], f: Filtros) {
+export function resumoTime(noPeriodo: Negocio[], f: Filtros, opps?: Negocio[]) {
   const perfis = [...new Set(noPeriodo.map(d => d.v))].map(v => perfilCloser(noPeriodo, v));
   const won = noPeriodo.filter(d => d.s === "won");
   const churn = noPeriodo.filter(d => d.churn);
   const receita = won.reduce((a, d) => a + d.val, 0);
   const ciclos = perfis.map(p => p.ciclo).filter((x): x is number => x != null);
+  const nOpp = opps ? opps.length : noPeriodo.length;
   return {
     perfis,
-    opp: noPeriodo.length, won: won.length, churn: churn.length, receita,
-    conv: noPeriodo.length ? won.length / noPeriodo.length : 0,
-    net: noPeriodo.length ? (won.length - churn.length) / noPeriodo.length : 0,
+    opp: nOpp, won: won.length, churn: churn.length, receita,
+    conv: nOpp ? won.length / nOpp : 0,
+    net: nOpp ? (won.length - churn.length) / nOpp : 0,
     ticket: won.length ? receita / won.length : 0,
     ciclo: ciclos.length ? ciclos.reduce((a, b) => a + b, 0) / ciclos.length : null,
   };
 }
 
-function porReceita<T>(lista: Negocio[], chave: (d: Negocio) => string, f: Filtros) {
-  return [...new Set(lista.map(chave))]
+function porReceita<T>(lista: Negocio[], chave: (d: Negocio) => string, f: Filtros,
+                      opps: Negocio[] = []) {
+
+  return [...new Set([...lista.map(chave), ...opps.map(chave)])]
     .map(k => {
       const r = lista.filter(d => chave(d) === k);
-      const a = agg(r, f);
-      return { k, r, a, receita: a.receita, opp: a.opp };
+      const o = opps.filter(d => chave(d) === k);
+      const a = agg(r, f, undefined, o);
+      return { k, r, o, a, receita: a.receita, opp: a.opp };
     })
     .sort((x, y) => y.receita - x.receita || y.opp - x.opp
                  || String(x.k).localeCompare(String(y.k), "pt-BR"));
 }
 
-export function hierarquia(noPeriodo: Negocio[], f: Filtros) {
-  return porReceita(noPeriodo, d => d.v, f).map(v => ({
+export function hierarquia(noPeriodo: Negocio[], f: Filtros, opps: Negocio[] = []) {
+  return porReceita(noPeriodo, d => d.v, f, opps).map(v => ({
     ...v,
-    produtos: porReceita(v.r, d => d.p, f).map(p => ({
+    produtos: porReceita(v.r, d => d.p, f, v.o).map(p => ({
       ...p,
       negocios: [...p.r].sort((a, b) => b.val - a.val),
     })),
@@ -985,7 +1037,9 @@ export function funilSdr(rows: NegocioSdr[], f: FiltroSdr) {
   return {
     conectados, sql, ops, sal,
 
-    aceite: taxa(sal.length, conectados.length),
+    aceite: taxa(sal.length, ops.length),
+
+    taxaGeral: taxa(sal.length, conectados.length),
     taxaSql: taxa(sql.length, conectados.length),
     taxaOps: taxa(ops.length, sql.length),
     taxaSal: taxa(sal.length, ops.length),
@@ -1004,7 +1058,8 @@ export function porSdr(rows: NegocioSdr[], f: FiltroSdr) {
     return {
       sdr,
       conectados: conectados.length, sql: sql.length, ops: ops.length, sal: sal.length,
-      aceite: conectados.length ? sal.length / conectados.length : null,
+      aceite: ops.length ? sal.length / ops.length : null,
+      taxaGeral: conectados.length ? sal.length / conectados.length : null,
       vendas: won.length,
       receita: won.reduce((a, d) => a + d.val, 0),
     };
