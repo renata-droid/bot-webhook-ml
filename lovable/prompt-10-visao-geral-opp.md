@@ -1,94 +1,111 @@
-/* Contas do Painel Comercial ICOMM — sem tela, sem DOM, sem framework.
-   ============================================================================
-   Este arquivo é a ÚNICA fonte dos números. O painel antigo em HTML e a versão
-   nova em React devem os dois chamar daqui.
+Substitua o conteúdo inteiro de `src/lib/calculos.ts` pelo código no fim desta
+mensagem e faça dois ajustes.
 
-   Por que existe: as regras abaixo parecem detalhe e não são. "Vencido" olha a
-   data de referência e não hoje; a meta de churn é sobre recebimento e não
-   sobre contagem de aluno; o forecast usa a conversão do próprio closer. Se
-   alguém reescrever isso a partir de uma descrição em texto, os números saem
-   diferentes E PARECENDO CERTOS — que é o pior defeito possível num painel de
-   decisão. Importar este arquivo evita a reescrita.
+## 1. Tirar o seletor "Base da data" de TODAS as páginas
 
-   Não colocar nada de visual aqui. Formatação de moeda, cor e layout são da
-   camada de cima.                                                             */
+Remova o campo do topo de Visão geral, Retorno, Churn, SDR, Closers e Reuniões
+— de onde ele aparecer. O valor fica fixo em desfecho ganho/perda
+(`basedata: "desfecho"`), que é o que ele já estava marcando.
 
+## 2. Visão geral: OPP também é o Dia Oportunidade
+
+Hoje o card OPP mostra 458. Tem que mostrar o mesmo que a página Closers e o
+Pipedrive: **321**. Mesmo caminho que já foi feito em Closers:
+
+```ts
+const noPeriodo = base(deals, filtro)
+const opps      = oppsNoPeriodo(deals, filtro)
+
+const cards = resumoTime(noPeriodo, filtro, opps)   // ou agg(noPeriodo, filtro, undefined, opps)
+```
+
+Consequências, todas esperadas:
+
+- **CONV. BRUTA** vai de 9,0% para ~12,8% (41 ÷ 321)
+- **CONV. NET** vai de 8,7% para ~12,4%
+- o gráfico de conversão acompanha — a `serie` já conta a oportunidade pela
+  semana do Dia Oportunidade e o ganho pela semana em que fechou
+
+Uma coisa a corrigir no card OPP: o subtítulo `41G · 305L · 46R` some. Esses
+três são desfechos do período e não somam mais 321, que são as oportunidades
+geradas no período. Os três já têm cards próprios ao lado (GANHOS, LOST, EM
+RETORNO), então nada se perde. Troque o subtítulo por `oportunidades no período`.
+
+## Arquivo
+
+```ts
 export type Analise = {
   nota: number;
-  dur: number | null;          // duração em minutos
-  cp: number | null;           // % do tempo em que o closer falou
-  lp: number | null;           // % do tempo em que o lead falou
+  dur: number | null;
+  cp: number | null;
+  lp: number | null;
   resumo: string | null;
   certo: string[]; erro: string[]; cond: string[];
   porque: string | null;
-  /* Os quatro abaixo vinham da Edge Function e o painel antigo ignorava. */
-  valorPitch: number | null;   // valor ofertado NA CALL
-  parc: number | null;         // nº de parcelas do pitch
-  nota_justificativa: string | null;  // por que a IA deu essa nota
-  closer: string | null;       // nome como escrito na análise
+
+  valorPitch: number | null;
+  parc: number | null;
+  nota_justificativa: string | null;
+  closer: string | null;
   sdrNota: string | null;
 };
 
 export type Negocio = {
   id: number;
-  t: string;                 // título do negócio
-  v: string;                 // closer (campo "Vendedor")
-  p: string;                 // produto
+  t: string;
+  v: string;
+  p: string;
   s: "won" | "lost" | "open";
-  val: number;               // valor do negócio
-  valPago: number;           // o que de fato entrou
-  et: string;                // etapa do funil
-  tmp: string | null;        // Quente | Morno | Frio
-  lead: string | null;       // A..F
+  val: number;
+  valPago: number;
+  et: string;
+  tmp: string | null;
+  lead: string | null;
   canal: string | null;
   orig: string | null;
-  dCriacao: string | null;   // AAAA-MM-DD
+  dCriacao: string | null;
   dGanho: string | null;
   dPerda: string | null;
   dDesfecho: string | null;
-  dpar: number | null;       // dias parado na etapa
-  nret: number | null;       // nº de retornos
-  retAgendado: string | null;        // o campo "Data Retorno Agendado", cru
-  proxAtiv?: string | null;          // a próxima atividade em aberto na agenda
+  dpar: number | null;
+  nret: number | null;
+  retAgendado: string | null;
+  proxAtiv?: string | null;
   proxAtivAssunto?: string | null;
   retRealizado: string | null;
   noShow: string | null;
   diaReuniao: string | null;
-  dSal: string | null;         // Data Lead Aceito pelo Closer (SAL)
-  dSql: string | null;         // Data Qualificação (SQL)
+  dSal: string | null;
+  dSql: string | null;
   churn: boolean;
   reemb: number;
-  dc: string | null;         // data do cancelamento
+  dc: string | null;
   precoLista: number;
   an: Analise | null;
   [k: string]: unknown;
 };
 
 export type Filtros = {
-  de: string;                // AAAA-MM-DD
+  de: string;
   ate: string;
   basedata: "desfecho" | "criacao";
   orig?: string; vend?: string; prod?: string;
   canal?: string; lead?: string; temp?: string;
-  /* "retorno" = só Retorno Agendado + Realizado; "followup" inclui Follow UP */
+
   ret?: "retorno" | "followup";
 };
 
-/* ---------- utilidades de data ---------- */
 export const difDias = (a?: string | null, b?: string | null): number | null =>
   a && b ? Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / 86400e3) : null;
 
 export const maisDias = (iso: string, n: number): string =>
   new Date(Date.parse(iso + "T12:00:00Z") + n * 86400e3).toISOString().slice(0, 10);
 
-/* ---------- recortes ---------- */
 export const ETAPAS_RET = (f: Filtros): string[] =>
   f.ret === "followup"
     ? ["Retorno Agendado", "Retorno Realizado", "Follow UP"]
     : ["Retorno Agendado", "Retorno Realizado"];
 
-/* Qual data manda no recorte do período. O padrão é o DESFECHO — é assim que o
-   card [AE] do Insights do Pipedrive conta, e foi o que fez os números baterem. */
 export const dataRef = (d: Negocio, f: Filtros): string | null =>
   f.basedata === "criacao" ? d.dCriacao : d.dDesfecho;
 
@@ -100,62 +117,35 @@ export const filtrosComuns = (d: Negocio, f: Filtros): boolean =>
   (!f.lead || d.lead === f.lead) &&
   (!f.temp || d.tmp === f.temp);
 
-/** Negócios do período — é o que o Insights conta. */
 export const base = (deals: Negocio[], f: Filtros): Negocio[] =>
   deals.filter(d => { const r = dataRef(d, f); return !!r && r >= f.de && r <= f.ate; })
        .filter(d => filtrosComuns(d, f));
 
-/* OPP é UM campo só: "Dia Oportunidade". O Pipedrive conta assim, a página
-   SDR conta assim, e a de Closers passa a contar assim também — 322 em agosto
-   é 322 nas duas telas.
-
-   Não é o mesmo recorte de `base()`. `base()` pega quem teve DESFECHO no
-   período (e, para negócio aberto, cai na data de criação); OPP pega quem
-   VIROU OPORTUNIDADE no período, tenha fechado ou não. Contar oportunidade
-   pela data de desfecho inflava o número com os abertos e afundava a
-   conversão: 41 de 458 dava 9,0%, quando a leitura certa é 41 de 322. */
 export const oppsNoPeriodo = (deals: Negocio[], f: Filtros): Negocio[] =>
   deals.filter(d => !!d.diaOpp && d.diaOpp >= f.de && d.diaOpp <= f.ate)
        .filter(d => filtrosComuns(d, f));
 
-/** Carteira aberta de hoje — NÃO depende do período, de propósito. */
 export const carteira = (deals: Negocio[], f: Filtros): Negocio[] =>
   deals.filter(d => d.s === "open").filter(d => filtrosComuns(d, f));
 
-/* ---------- agregados ---------- */
-/* O que ainda pode virar receita: aberto com retorno agendado ou parado numa
-   etapa de RET, projetado na conversão OBSERVADA do próprio recorte. Não é
-   meta — é o que a régua atual entrega se nada mudar. */
 function forecast(open: Negocio[], conv: number, f: Filtros) {
   const alvo = open.filter(d => d.retAgendado || ETAPAS_RET(f).includes(d.et));
   const fVal = alvo.reduce((a, d) => a + d.val, 0);
   return { fOpp: alvo.length, fVal, fConv: conv, fWon: alvo.length * conv, fRec: fVal * conv };
 }
 
-/** Quanto da receita ganha passou por retorno — é o que justifica a régua existir. */
 function receitaRet(won: Negocio[], receita: number) {
   const r = won.filter(d => d.retAgendado || d.retRealizado || (d.nret ?? 0) > 0);
   const rec = r.reduce((a, d) => a + d.val, 0);
   return { retWon: r.length, retRec: rec, retPct: receita ? rec / receita : 0 };
 }
 
-/** Receita saída de negócio marcado como Quente — o teste da temperatura:
-    se o quente não vende mais que o resto, o campo virou enfeite. */
 function receitaQuente(won: Negocio[], receita: number) {
   const q = won.filter(d => d.tmp === "Quente");
   const rec = q.reduce((a, d) => a + d.val, 0);
   return { qWon: q.length, qRec: rec, qPct: receita ? rec / receita : 0 };
 }
 
-/* Ciclo = do Dia Oportunidade até o ganho, e NÃO da criação até o ganho.
-   Da criação até o ganho mistura o tempo do SDR com o do closer: um lead que
-   ficou três semanas na fila antes de virar oportunidade inflava o ciclo de
-   quem nem tinha recebido ele ainda. Oportunidade é quando vira trabalho do
-   closer, e é de lá que o relógio dele começa.
-
-   Negócio sem Dia Oportunidade preenchido fica de fora da média — por isso a
-   contagem sai junto, em `nCiclo`. Média de três negócios não é a média do
-   time, e a tela precisa poder dizer isso. */
 function cicloDe(won: Negocio[]) {
   const c = won.map(d => difDias(d.diaOpp, d.dGanho))
                .filter((x): x is number => x != null && x >= 0);
@@ -164,9 +154,6 @@ function cicloDe(won: Negocio[]) {
 
 export type Agregado = ReturnType<typeof agg>;
 
-/* `opps` é opcional para não quebrar quem já chamava `agg` com três
-   argumentos. Quando vem, ela manda no denominador: a conversão passa a ser
-   ganhos ÷ oportunidades do período, e não ganhos ÷ tudo que apareceu. */
 export function agg(rows: Negocio[], f: Filtros, ret?: Negocio[], opps?: Negocio[]) {
   const won = rows.filter(d => d.s === "won");
   const lost = rows.filter(d => d.s === "lost");
@@ -196,41 +183,19 @@ export function agg(rows: Negocio[], f: Filtros, ret?: Negocio[], opps?: Negocio
     ...receitaRet(won, receita),
     ...receitaQuente(won, receita),
     ciclo: cicloDe(won).media,
-    nCiclo: cicloDe(won).n,          // em quantos ganhos a média se apoia
-    baseCiclo: won.length,           // de quantos ela poderia se apoiar
+    nCiclo: cicloDe(won).n,
+    baseCiclo: won.length,
   };
 }
 
-/* ---------- meta do mês ----------
-
-   Forecast aqui não é previsão: é meta. "Quantas oportunidades e quantos
-   ganhos eu preciso" — e a resposta não é calculada aqui, é COPIADA.
-
-   A meta já é decidida todo mês no dashboard de forecast do financeiro, que
-   parte de um mês base (ago/26 saiu de jul/26) e aplica desconto, acurácia,
-   CFT e capacidade de consultor. Se o painel refizesse essa conta com a régua
-   dele, ia dar outro número — e aí a empresa teria duas metas. Então o painel
-   repete a do financeiro, e a única fonte continua sendo uma.
-
-   Mês novo, uma linha nova aqui, copiada dos cards SALES META, OPP META e
-   GANHOS META. Mês sem linha não inventa meta nenhuma: a tela diz que ainda
-   não foi definida. É melhor um tracinho honesto do que um número que ninguém
-   combinou. */
 export type MetaMes = { sales: number; opps: number; ganhos: number };
 
 export const METAS: Record<string, MetaMes> = {
   "2026-08": { sales: 1_207_500, opps: 330, ganhos: 85 },
 };
 
-/* Qual mês vale para um período: o da data FINAL. Num filtro de 01/08 a 25/08
-   a meta é a de agosto. Use `mesDe(f.ate)` — a função já existe acima. */
-
 export const metaDe = (mes: string): MetaMes | null => METAS[mes] ?? null;
 
-/* O que a meta exige, e onde estamos.
-
-   `falta` nunca é negativo — bateu a meta, falta zero, e não "faltam −3
-   ganhos". `atingido` passa de 1 de propósito: 124% é informação. */
 export function metaDoMes(atual: Agregado, mes: string) {
   const meta = metaDe(mes);
   if (!meta) return null;
@@ -249,15 +214,12 @@ export function metaDoMes(atual: Agregado, mes: string) {
       ganhos: pct(feito.ganhos, precisa.ganhos),
       opps: pct(feito.opps, precisa.opps),
     },
-    /* a régua que a meta embute, para a tela poder comparar com a real */
+
     ticketMeta: meta.ganhos ? meta.sales / meta.ganhos : null,
     convMeta: meta.opps ? meta.ganhos / meta.opps : null,
   };
 }
 
-/* ---------- série do gráfico ----------
-   Agrupa por semana; passando de 92 dias, por mês. A régua sai do próprio
-   período escolhido, não de uma constante. */
 export function serie(deals: Negocio[], f: Filtros) {
   const dias = Math.round(
     (Date.parse(f.ate + "T12:00:00") - Date.parse(f.de + "T12:00:00")) / 86400000) + 1;
@@ -274,10 +236,6 @@ export function serie(deals: Negocio[], f: Filtros) {
   };
   const chave = (iso: string) => rotulo(new Date(iso + "T12:00:00"));
 
-  /* Duas passadas, porque são duas perguntas com datas diferentes. O ganho
-     entra na semana em que fechou; a oportunidade, na semana do Dia
-     Oportunidade. Contar as duas pela mesma data era o que fazia a conversão
-     do gráfico discordar da conversão do card. */
   for (const d of base(deals, f)) {
     const r = dataRef(d, f); if (!r) continue;
     const b = balde(chave(r));
@@ -302,17 +260,12 @@ export function serie(deals: Negocio[], f: Filtros) {
   };
 }
 
-/* ---------- ranking de closers, por receita ---------- */
 export function ranking(rows: Negocio[], f: Filtros) {
   return [...new Set(rows.map(d => d.v))]
     .map(v => ({ v, a: agg(rows.filter(d => d.v === v), f) }))
     .sort((x, y) => y.a.receita - x.a.receita);
 }
 
-/* ---------- qualificação do que entrou, e o que virou venda ---------- */
-/* Qual nota olhar: a do formulário (`lead`) ou a requalificação do SDR
-   (`leadSql`). A página Closers usa a requalificação — é ela que diz o que o
-   closer recebeu de fato. As outras páginas continuam na do formulário. */
 export type CampoLead = "lead" | "leadSql";
 
 export function qualificacao(rows: Negocio[], campo: CampoLead = "lead") {
@@ -330,31 +283,13 @@ export function qualificacao(rows: Negocio[], campo: CampoLead = "lead") {
   };
 }
 
-/* ---------- formatação (a camada de cima pode usar ou ignorar) ---------- */
 export const BRL = (n: number) => "R$ " + Math.round(n).toLocaleString("pt-BR");
 export const PCT = (n: number) =>
   (isFinite(n) ? (n * 100).toFixed(1).replace(".", ",") : "0,0") + "%";
 
-/* ============================================================================
-   CHURN
-   ============================================================================
-   Duas leituras do mesmo período, e elas NÃO dão o mesmo número:
-   · "cancelou" — quem pediu cancelamento nestas datas, tenha vendido quando
-     tiver vendido. É como o CS enxerga o mês. Usa o histórico de 12 meses.
-   · "vendeu"   — das vendas destas datas, quantas caíram. É como o comercial
-     enxerga a própria safra. Usa os negócios do período.
-   Mostrar uma e chamar de "churn do mês" sem dizer qual é o erro clássico.   */
+export const META_CHURN = 0.05;
+export const DIAS_PRECOCE = 7;
 
-export const META_CHURN = 0.05;   // meta da casa, medida sobre o RECEBIMENTO
-export const DIAS_PRECOCE = 7;    // cancelou em até 7 dias do ganho = precoce
-
-/* As sete opções do campo "Motivo Churn" no Pipedrive, agrupadas por quem tem a
-   mão no problema. Quatro grupos, não cinco: "Negativa contratual" está em
-   Comercial — contrato que o cliente se recusa a honrar é venda mal alinhada,
-   não categoria à parte. Logística/Marketplace fica sozinho: não é erro nosso
-   nem problema do cliente, é a operação em volta.
-   O campo é de MÚLTIPLA ESCOLHA — um cancelamento entra em mais de um motivo, e
-   por isso as porcentagens somam mais de 100%. A tela precisa dizer isso. */
 export const MOTIVOS_CHURN: Array<[string, string]> = [
   ["Arrependimento (comprou no impulso)",    "Comercial"],
   ["Desalinhamento no comercial",            "Comercial"],
@@ -374,8 +309,6 @@ export const AREAS: Array<[string, string, string]> = [
   ["Logística/Marketplace", "ciano", "logística, frete ou conta no marketplace"],
 ];
 
-/** O que de fato entrou. "Valor pago" vazio cai para o valor do negócio — e a
-    tela avisa quantos entraram por aproximação. */
 export const recebidoDe = (d: Negocio): number => (d.valPago > 0 ? d.valPago : d.val) || 0;
 
 export const ehPrecoce = (d: Negocio): boolean => {
@@ -385,7 +318,6 @@ export const ehPrecoce = (d: Negocio): boolean => {
 
 export const mesDe = (iso?: string | null) => (iso ? iso.slice(0, 7) : null);
 
-/** Quem entra na conta de churn, conforme a aba escolhida. */
 export function selecaoChurn(
   noPeriodo: Negocio[], churn12: Negocio[], f: Filtros, aba: "cancelou" | "vendeu",
 ) {
@@ -399,9 +331,6 @@ export function selecaoChurn(
   };
 }
 
-/** Os números do topo da página. A meta é sobre o RECEBIMENTO, não sobre
-    contagem de aluno — apresentar a taxa por cabeça como se fosse a meta é o
-    erro que esta função existe para evitar. */
 export function resumoChurn(cs: Negocio[], ganhos: Negocio[]) {
   const reemb = cs.reduce((a, d) => a + (d.reemb || 0), 0);
   const precoces = cs.filter(ehPrecoce);
@@ -415,15 +344,13 @@ export function resumoChurn(cs: Negocio[], ganhos: Negocio[]) {
     comReembolso: cs.filter(d => d.reemb > 0).length,
     recebido,
     semValorPago: ganhos.filter(d => !(d.valPago > 0)).length,
-    /* a meta: reembolsado ÷ recebido */
+
     taxa: recebido ? reemb / recebido : null,
-    /* a mesma coisa em cabeças — serve de nota de rodapé, nunca de manchete */
+
     taxaQtd: ganhos.length ? cs.length / ganhos.length : null,
   };
 }
 
-/** Ordenado pelo dinheiro devolvido, não pela contagem: três cancelamentos de
-    R$ 500 e um de R$ 12 mil não são o mesmo problema. */
 export function churnPorCloser(noPeriodo: Negocio[], cs: Negocio[]) {
   const ganhos = noPeriodo.filter(d => d.s === "won");
   const nomes = [...new Set([...noPeriodo.map(d => d.v), ...cs.map(d => d.v)])];
@@ -441,8 +368,6 @@ export function churnPorCloser(noPeriodo: Negocio[], cs: Negocio[]) {
     .sort((a, b) => b.reemb - a.reemb || b.n - a.n || b.taxa - a.taxa);
 }
 
-/** Por Buddy, com o motivo junto: sem ele o bloco diz quanto foi devolvido mas
-    não POR QUE — e é o porquê que decide com quem é a conversa. */
 export function churnPorBuddy(cs: Negocio[]) {
   const comBuddy = cs.filter(d => d.buddy);
   const linhas = [...new Set(comBuddy.map(d => d.buddy as string))].map(b => {
@@ -477,8 +402,6 @@ export function churnPorProduto(noPeriodo: Negocio[], cs: Negocio[]) {
     .sort((a, b) => (b.taxa ?? -1) - (a.taxa ?? -1) || b.v - a.v);
 }
 
-/** De quem foi o churn. Conta CITAÇÕES de motivo, não pessoas — o campo aceita
-    mais de um motivo, então a soma passa de 100% e a tela tem que falar isso. */
 export function culpaDoChurn(cs: Negocio[]) {
   const cont: Record<string, { n: number; reemb: number; motivos: Record<string, number> }> = {};
   cs.forEach(d => ((d.cm as string[]) || []).forEach(m => {
@@ -511,10 +434,6 @@ export function tempoAteCancelar(cs: Negocio[]) {
   };
 }
 
-/* Cancelamentos mês a mês do ANO CIVIL do filtro — janeiro até o mês do "Até".
-   Não é janela móvel: misturar dois anos no mesmo gráfico impede comparar com a
-   meta do ano. A média do ano divide pelos meses DECORRIDOS, não por doze: em
-   agosto, dividir por doze joga a média um terço para baixo. */
 export function churnPorMes(churn12: Negocio[], f: Filtros) {
   const ano = (f.ate || "").slice(0, 4);
   const ultimo = Number((f.ate || "").slice(5, 7));
@@ -537,25 +456,18 @@ export function churnPorMes(churn12: Negocio[], f: Filtros) {
   const nMeses = dados.length;
   return {
     ano, dados, tot, totPrecoce, totReemb, nMeses,
-    mediaMes: nMeses ? totReemb / nMeses : 0,      // R$ devolvido por mês
-    mediaQtd: nMeses ? tot / nMeses : 0,           // cancelamentos por mês
+    mediaMes: nMeses ? totReemb / nMeses : 0,
+    mediaQtd: nMeses ? tot / nMeses : 0,
     pior: [...dados].sort((a, b) => b.n - a.n)[0] ?? null,
   };
 }
 
-/* ============================================================================
-   CLOSERS
-   ============================================================================ */
-
-/** Faixa da nota da call, no critério ICOMM/TF. */
 export const faixa = (n: number | null): string | null =>
   n == null ? null : n >= 8 ? "forte" : n >= 6.5 ? "boa" : n >= 5 ? "mediana" : "grave";
 
-/** Negócio que entra no forecast: aberto com retorno marcado ou parado em etapa de RET. */
 export const noFcst = (d: Negocio, f: Filtros): boolean =>
   d.s === "open" && !!(d.retAgendado || ETAPAS_RET(f).includes(d.et));
 
-/** Venda que passou por retorno em algum momento. */
 export const veioDeRet = (d: Negocio): boolean =>
   !!(d.retAgendado || d.retRealizado || (d.nret ?? 0) > 0);
 
@@ -565,7 +477,7 @@ export function perfilCloser(rows: Negocio[], v: string) {
   const lost = r.filter(d => d.s === "lost");
   const churn = r.filter(d => d.churn);
   const receita = won.reduce((a, d) => a + d.val, 0);
-  const ciclo = cicloDe(won);   // Dia Oportunidade -> ganho; ver cicloDe()
+  const ciclo = cicloDe(won);
   const comLista = won.filter(d => d.precoLista > 0);
   const lista = comLista.reduce((a, d) => a + d.precoLista, 0);
   const praticado = comLista.reduce((a, d) => a + d.val, 0);
@@ -583,7 +495,6 @@ export function perfilCloser(rows: Negocio[], v: string) {
   };
 }
 
-/** Os números do time, no topo da página. */
 export function resumoTime(noPeriodo: Negocio[], f: Filtros, opps?: Negocio[]) {
   const perfis = [...new Set(noPeriodo.map(d => d.v))].map(v => perfilCloser(noPeriodo, v));
   const won = noPeriodo.filter(d => d.s === "won");
@@ -601,13 +512,9 @@ export function resumoTime(noPeriodo: Negocio[], f: Filtros, opps?: Negocio[]) {
   };
 }
 
-/* Vendedor › Produto › Lead, ordenado por RECEITA em cada nível — quem vendeu
-   mais fica em cima. Empate em zero desempata por volume de oportunidades e
-   depois por nome, para a ordem não dançar entre uma carga e outra. */
 function porReceita<T>(lista: Negocio[], chave: (d: Negocio) => string, f: Filtros,
                       opps: Negocio[] = []) {
-  /* A chave vem dos DOIS lados: um closer pode ter oportunidade no mês sem
-     nenhum desfecho, e ele tem que aparecer na tabela mesmo assim. */
+
   return [...new Set([...lista.map(chave), ...opps.map(chave)])]
     .map(k => {
       const r = lista.filter(d => chave(d) === k);
@@ -629,7 +536,6 @@ export function hierarquia(noPeriodo: Negocio[], f: Filtros, opps: Negocio[] = [
   }));
 }
 
-/** Nos níveis agregados, o topo da distribuição de qualificação (ex.: B 5 · A 3). */
 export function mixLead(rows: Negocio[], campo: CampoLead = "lead") {
   const c: Record<string, number> = {};
   rows.forEach(d => {
@@ -640,8 +546,6 @@ export function mixLead(rows: Negocio[], campo: CampoLead = "lead") {
     .map(([lead, n]) => ({ lead, n }));
 }
 
-/** Busca e filtro de nota da tabela de negócios. Valem só ali — os filtros do
-    topo continuam mandando no resto da página. */
 export function filtraDeals(
   rows: Negocio[], busca: string, an: "" | "com" | "sem" | "8" | "65" | "5",
 ) {
@@ -661,7 +565,6 @@ export function filtraDeals(
   });
 }
 
-/** Motivos de perda mais frequentes por closer — para achar padrão, não culpado. */
 export function motivosDePerda(noPeriodo: Negocio[], quantos = 3) {
   return [...new Set(noPeriodo.map(d => d.v))]
     .map(v => {
@@ -678,23 +581,12 @@ export function motivosDePerda(noPeriodo: Negocio[], quantos = 3) {
     .sort((a, b) => b.perdas - a.perdas);
 }
 
-/* ============================================================================
-   REUNIÕES
-   ============================================================================ */
-
-/* O desconto que interessa é sobre o que o closer OFERTOU NA CALL, não sobre o
-   preço de catálogo: metade dos produtos não está cadastrada em Produtos no
-   Pipedrive, e aí precoLista vem zero e o desconto vira "—". O valor do pitch
-   a IA capturou da própria call. */
 export const descontoDoPitch = (d: Negocio): number | null => {
   const pitch = d.an?.valorPitch;
   if (!pitch || pitch <= 0 || d.s !== "won" || !d.val) return null;
   return 1 - d.val / pitch;
 };
 
-/** Frases que se repetem entre calls diferentes, agrupadas pelo começo. Serve
-    tanto para erro quanto para acerto: o padrão é o que interessa, não a frase
-    isolada de uma call. */
 export function frasesRecorrentes(
   linhas: string[][], minimo = 2, quantos = 6,
 ): Array<{ frase: string; n: number; exemplo: string }> {
@@ -712,8 +604,6 @@ export function frasesRecorrentes(
     .map(([frase, v]) => ({ frase, n: v.n, exemplo: v.ex }));
 }
 
-/** Score da call por produto — pedido do head. Diz qual produto o time sabe
-    vender e qual ele apanha para explicar. */
 export function scorePorProduto(rows: Negocio[]) {
   const comAn = rows.filter(d => d.an);
   return [...new Set(comAn.map(d => d.p))].map(p => {
@@ -734,13 +624,9 @@ export function scorePorProduto(rows: Negocio[]) {
       fala: cf.length ? cf.reduce((a, d) => a + ((d.an as Analise).cp as number), 0) / cf.length : null,
       desconto: descs.length ? descs.reduce((a, b) => a + b, 0) / descs.length : null,
     };
-  }).sort((a, b) => a.media - b.media);   // o pior primeiro: é onde se age
+  }).sort((a, b) => a.media - b.media);
 }
 
-/* Resumo por closer — pedido da proprietária, para não ler call a call.
-   NÃO é texto gerado: é o que as próprias análises já disseram, agrupado. Cada
-   linha aqui é rastreável até a call que a originou, e isso é melhor do que
-   prosa nova, que ninguém consegue conferir. */
 export function resumoPorCloser(rows: Negocio[]) {
   const comAn = rows.filter(d => d.an);
   return [...new Set(comAn.map(d => d.v))].map(v => {
@@ -755,9 +641,6 @@ export function resumoPorCloser(rows: Negocio[]) {
     const fech = won.length + lost.length;
     const descs = r.map(descontoDoPitch).filter((x): x is number => x != null);
 
-    /* objeções que ele mais enfrenta, e quanto contorna. Só as ouvidas NA
-       REUNIÃO: a que vem do motivo da perda está, por definição, em negócio
-       perdido, e daria 0% de contorno para todo mundo. */
     const objm: Record<string, { n: number; won: number }> = {};
     r.forEach(d => ((d.obj as Array<{ nome: string; origem: string }>) || [])
       .filter(o => o.origem === "call")
@@ -782,7 +665,7 @@ export function resumoPorCloser(rows: Negocio[]) {
         const ps = an.map(a => a.parc).filter((x): x is number => !!x);
         return ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : null;
       })(),
-      /* mínimo 2: uma frase que apareceu numa call só é anedota, não padrão */
+
       erros: frasesRecorrentes(an.map(a => a.erro), 2, 3),
       acertos: frasesRecorrentes(an.map(a => a.certo), 2, 3),
       objecoes: Object.entries(objm)
@@ -792,23 +675,9 @@ export function resumoPorCloser(rows: Negocio[]) {
   }).sort((a, b) => b.media - a.media);
 }
 
-/* ============================================================================
-   SAL — Sales Accepted Lead
-   ============================================================================
-   O dia em que o CLOSER aceitou o lead. Existe porque "ciclo de venda" medido
-   da criação do negócio até o ganho mistura o tempo do SDR com o do closer, e
-   cobra do closer um atraso que pode não ser dele. Da aceitação até o ganho é
-   só o tempo dele.
-
-   Vem preenchido em negócio ganho. Em negócio aberto costuma vir vazio: a API
-   v2 traz no máximo 15 campos customizados e este não está entre eles — por
-   isso as funções abaixo sempre dizem sobre quantos negócios calcularam.      */
-
-/** Da aceitação do lead até o ganho — o ciclo que é do closer. */
 export const cicloDoCloser = (d: Negocio): number | null =>
   d.s === "won" ? difDias(d.dSal as string | null, d.dGanho) : null;
 
-/** Da qualificação até o closer aceitar — quanto o lead esperou na mão dele. */
 export const tempoDeAceite = (d: Negocio): number | null =>
   difDias(d.dSql as string | null, d.dSal as string | null);
 
@@ -823,7 +692,7 @@ export function salPorCloser(rows: Negocio[]) {
     return {
       v,
       negocios: r.length,
-      /* sem isto o número engana: média de 3 negócios não é a média do closer */
+
       comSal: aceitos.length,
       cobertura: r.length ? aceitos.length / r.length : 0,
       aceitos: aceitos.length,
@@ -836,66 +705,16 @@ export function salPorCloser(rows: Negocio[]) {
     .sort((a, b) => (a.cicloCloser ?? 1e9) - (b.cicloCloser ?? 1e9));
 }
 
-/* ============================================================================
-   RETORNO
-   ============================================================================
-   Três abas, três perguntas diferentes — e é por isso que elas usam réguas de
-   data diferentes:
-
-   · Carteira  — em que pé está cada retorno AGORA. Bloco de ESTADO: lê a
-                 carteira aberta inteira, vista a partir da data de referência
-                 (o "Até"). Não leva recorte de intervalo. "Vencido" é estado
-                 acumulado, não evento: retorno marcado para 19/08 e não feito
-                 continua vencido no dia 24. Filtrar [24/08 a 24/08] exigiria
-                 que o retorno tivesse sido marcado exatamente naquele dia — e
-                 zerava a tela inteira com 29 negócios abertos.
-   · Lastro    — o que as reuniões DO PERÍODO renderam. Bloco de EVENTO: leva o
-                 intervalo do topo.
-   · Funil     — a conversão das reuniões do período. Bloco de EVENTO também.
-
-   O gráfico "Retornos por dia" mora na Carteira mas é EVENTO: a barra é o dia
-   agendado, dentro do intervalo. Por isso filtrar um dia mostra a barra
-   daquele dia, com os cartões acima ainda contando a carteira inteira. */
-
-/** A data de onde se olha o funil. Não é janela: é o dia em que a foto foi tirada. */
 export const refISO = (f: Filtros): string => f.ate;
 
-/* QUANDO O RETORNO E.
-   ===================
-   A agenda ganha do campo. O campo "Data Retorno Agendado" e uma copia que
-   envelhece: o closer remarca movendo a atividade no Pipedrive e nao volta no
-   campo. O retorno do Alexandro Bianchi estava marcado para 26/08 na agenda e
-   24/08 no campo, e a tela cobrava um atraso que nao existia.
-
-   Mora aqui, e nao na Edge Function, porque o campo cru e lido por outras
-   paginas (o forecast da Visao geral, por exemplo). A pergunta "quando e o
-   retorno" e desta pagina; a resposta tambem.
-
-   Daqui para baixo, todo mundo passa por esta funcao. Ler o campo cru direto
-   e reintroduzir o bug. */
 export const dataRet = (d: Negocio): string | null => d.proxAtiv ?? d.retAgendado;
 
-/* A ETAPA manda, e só ela. Ignoram de propósito o filtro "ret" do topo: Follow
-   UP é o caso mais grave (ninguém marcou nada) e não pode sumir da tela por
-   causa de um seletor.
-
-   Antes bastava ter "Data Retorno Agendado" preenchida para o negócio entrar
-   aqui, esteja ele onde estivesse no funil. O campo não é limpo quando o
-   negócio avança, então um negócio já em Link Enviado — retorno feito, proposta
-   enviada — aparecia como retorno pendente e ainda contava como atrasado. A
-   tela dizia 9 onde o kanban do Pipedrive mostrava 8.
-
-   Custo desta escolha: retorno marcado num negócio parado em "Proposta Enviada"
-   não aparece nesta página. Foi decidido assim — o painel tem que bater com o
-   kanban, e é o kanban que o time olha o dia inteiro. */
 export const ETAPAS_RET_FIXAS =
   ["Retorno Agendado", "Retorno Realizado", "Follow UP", "No Show"];
 
 export const carteiraRet = (deals: Negocio[], f: Filtros): Negocio[] =>
   carteira(deals, f).filter(d => ETAPAS_RET_FIXAS.includes(d.et));
 
-/* Só 7% preenchem "Data Retorno Realizado" e 2% "Data NoShow" — mas a etapa do
-   funil é movida. Então a etapa vale como registro quando a data falta. */
 export const foiRealizado = (d: Negocio): boolean =>
   !!d.retRealizado || d.et === "Retorno Realizado";
 export const foiNoShow = (d: Negocio): boolean =>
@@ -904,9 +723,6 @@ export const foiNoShow = (d: Negocio): boolean =>
 export type EstadoRet =
   | "vencido" | "hoje" | "futuro" | "noshow" | "reagendado" | "realizado" | "semdata";
 
-/* Em que pé está o retorno deste negócio.
-   A ordem importa: reagendado ganha de no-show, e no-show ganha de vencido —
-   senão o closer que correu atrás aparece como se não tivesse feito nada. */
 export function estadoRet(d: Negocio, f: Filtros): EstadoRet | null {
   if (d.s !== "open") return null;
   const ag = dataRet(d);
@@ -927,21 +743,13 @@ export const ROTULO_EST: Record<EstadoRet, string> = {
   reagendado: "Reagendado", realizado: "Realizado", semdata: "Sem data",
 };
 
-/* Vencido primeiro: a tela é fila de trabalho, não relatório. */
 export const PESO_EST: Record<EstadoRet, number> = {
   vencido: 0, semdata: 1, noshow: 2, hoje: 3, reagendado: 4, futuro: 5, realizado: 6,
 };
-/* A ordem dos chips da lista, e ela NÃO é a mesma do PESO_EST acima.
-   "realizado" fica de fora de propósito: o negócio continua na lista e entra no
-   chip "Todos", mas não ganha botão próprio — a lista é fila de trabalho, e
-   retorno já realizado não é trabalho pendente. Efeito colateral: a soma dos
-   chips não fecha com o "Todos" quando existe algum realizado na carteira. */
+
 export const ORDEM_EST: EstadoRet[] =
   ["vencido", "semdata", "noshow", "hoje", "futuro", "reagendado"];
 
-/* ---------- os quatro cartões de ação ---------- */
-/* Não existe cartão "Amanhã": ele olhava para fora do período. Amanhã aparece
-   quando o "Até" alcança amanhã — a tela obedece o filtro, não o contrário. */
 export function cartoesRet(rows: Negocio[], f: Filtros) {
   const por = (e: EstadoRet) => rows.filter(d => estadoRet(d, f) === e);
   const soma = (a: Negocio[]) => a.reduce((x, d) => x + d.val, 0);
@@ -957,9 +765,6 @@ export function cartoesRet(rows: Negocio[], f: Filtros) {
   ];
 }
 
-/* ---------- lastro: a reunião saiu com retorno marcado? ---------- */
-/* A pergunta do gestor de manhã. Lê D inteiro, não a carteira: reunião que já
-   virou venda ou perda também teve lastro, e sumiria se lêssemos só os abertos. */
 export function lastro(deals: Negocio[], f: Filtros) {
   const reunioes = deals.filter(d => filtrosComuns(d, f))
     .filter(d => d.diaReuniao && d.diaReuniao >= f.de && d.diaReuniao <= f.ate);
@@ -986,15 +791,6 @@ export function lastro(deals: Negocio[], f: Filtros) {
   return { reunioes, comRet, noShow, sem, porCloser };
 }
 
-/* ---------- retornos por dia ---------- */
-/* Junta o que eram dois blocos — "agenda dos próximos dias" e "forecast por
-   dia". Era o mesmo dado desenhado duas vezes, um olhando para a frente e outro
-   para o período, e eles se contradiziam na tela.
-
-   A janela é o período do topo e nada além dele. Antes esticava 14 dias à
-   frente por conta própria, e aí o gráfico discordava dos cartões logo acima.
-   Quem quiser ver o que vem estica o "Até" — e `depois` diz quantos ficaram de
-   fora, para a pessoa decidir se vale. */
 export const TEMPS_RET: Array<string | null> = ["Quente", "Morno", "Frio", null];
 
 export function retornosPorDia(cr: Negocio[], f: Filtros) {
@@ -1027,9 +823,7 @@ export function retornosPorDia(cr: Negocio[], f: Filtros) {
     };
     return {
       v, deals: arr, n: arr.length, val: arr.reduce((a, d) => a + d.val, 0),
-      /* Atrasado é o ESTADO "vencido", não "data no passado". Retorno já
-         realizado carrega data velha e não deve o número a ninguém — era isso
-         que inflava a coluna que vai para a reunião de gestão. */
+
       atras: arr.filter(d => estadoRet(d, f) === "vencido").length,
       q: cel("Quente"), m: cel("Morno"), f: cel("Frio"),
     };
@@ -1038,22 +832,12 @@ export function retornosPorDia(cr: Negocio[], f: Filtros) {
   return {
     vazio: false as const, ag, depois, dias, porDia, porCloser, passado, futuro,
     total: ag.reduce((a, d) => a + d.val, 0),
-    /* Para a linha de Total da tabela por closer. Não é `passado.length`:
-       aquele é posicional (o que ficou à esquerda da linha de referência no
-       gráfico), este é o estado. Os dois divergem, e é a coluna "Atrasados"
-       que precisa do segundo. */
+
     atrasados: ag.filter(d => estadoRet(d, f) === "vencido").length,
     legenda: TEMPS_RET.map(t => ({ t, n: ag.filter(d => (d.tmp || null) === t).length })),
   };
 }
 
-/* ---------- a lista única, com busca e chips ---------- */
-/* Antes eram três tabelas com o mesmo conteúdo e filtros diferentes: fila de
-   trabalho, carteira inteira e lista do forecast. Agora é uma só, e os estados
-   viraram botões.
-
-   A busca corta ANTES dos chips, então o número do chip bate com o que a tabela
-   mostra. Buscar e clicar num estado se somam, não competem. */
 export function listaRet(
   todos: Negocio[], f: Filtros, busca = "", estado: EstadoRet | "" = "",
 ) {
@@ -1088,20 +872,12 @@ export function listaRet(
   return {
     lista, chips, porEstado, total: todos.length,
     valor: lista.reduce((a, d) => a + d.val, 0),
-    /** dias de atraso — só faz sentido para quem está vencido */
+
     atrasoDe: (d: Negocio) =>
       estadoRet(d, f) === "vencido" ? difDias(dataRet(d), refISO(f)) : null,
   };
 }
 
-/* ---------- funil do retorno ---------- */
-/* Aninhado: cada etapa é um subconjunto da anterior. Sem isso as porcentagens
-   passam de 100% e o funil vira enfeite.
-
-   A fonte é D inteiro filtrado, NÃO base(): base() já vem recortado por data de
-   desfecho, então o funil exigia que o negócio tivesse sido fechado E a reunião
-   acontecido na mesma janela. Quase nada satisfaz as duas — era por isso que
-   dava zero reuniões com o Lastro logo ao lado mostrando seis. */
 export function funilRet(rows: Negocio[], f: Filtros) {
   const reunioes   = rows.filter(d => d.diaReuniao && d.diaReuniao >= f.de && d.diaReuniao <= f.ate);
   const agendados  = reunioes.filter(d => dataRet(d) || foiRealizado(d) || foiNoShow(d));
@@ -1118,7 +894,7 @@ export function cartoesFunil(rows: Negocio[], f: Filtros) {
     taxaAgendou:  taxa(g.agendados.length, g.reunioes.length),
     taxaRealizou: taxa(g.realizados.length, g.agendados.length),
     taxaVenda:    taxa(g.ganhos.length, g.realizados.length),
-    /** quantos retornos custa fechar uma venda */
+
     porVenda: g.ganhos.length ? g.realizados.length / g.ganhos.length : null,
   };
 }
@@ -1142,28 +918,12 @@ export function corteRet(rows: Negocio[], f: Filtros, qual: keyof typeof CORTES_
   return { linhas, total: funilRet(rows, f), titulo: CORTES_RET[qual].titulo };
 }
 
-/* ============================================================================
-   SDR
-   ============================================================================
-   Vem de OUTRO endpoint — a função `sdr`, não a `live`. São perguntas
-   diferentes: a `live` conta negócios por desfecho, esta conta etapas do lead
-   por data em que cada etapa aconteceu.
-
-   O funil: Conectado -> SQL -> OPS -> SAL.
-   · Conectado = alguém falou com o lead (Data Conexão)
-   · SQL       = o SDR qualificou (Data Qualificação)
-   · OPS       = virou oportunidade (Dia Oportunidade)
-   · SAL       = o closer ACEITOU (Data SAL) — é o que o SDR entrega de fato
-
-   Cada etapa é contada pela SUA data dentro do período, não pela data de
-   criação do negócio. Um lead de março aceito em agosto é SAL de agosto. */
-
 export type NegocioSdr = {
   id: number; t: string;
   sdr: string; v: string;
   dConexao: string | null; dSql: string | null; dOpp: string | null; dSal: string | null;
-  lead: string | null;        // como o lead chegou, pelo formulário
-  leadSql: string | null;     // como ficou depois da requalificação do SDR
+  lead: string | null;
+  leadSql: string | null;
   canal: string | null; orig: string | null;
   s: "won" | "lost" | "open";
   val: number; dCriacao: string | null;
@@ -1173,18 +933,6 @@ export type FiltroSdr = { de: string; ate: string; sdr?: string; canal?: string 
 
 const noPeriodo = (x: string | null, f: FiltroSdr) => !!x && x >= f.de && x <= f.ate;
 
-/* Quem é SDR, de verdade.
-
-   O campo "Vendedor SDR" do Pipedrive não é confiável para dizer isso: cai ali
-   gente do CS, closer, gente que já saiu da empresa e até e-mail de robô. Uma
-   lista de exclusão não resolve, porque a cada mês aparece um nome novo — foi
-   o que aconteceu: tiramos o CS e sobraram Milena, Lucas, Andrea, Renato e
-   Aline. (A `tecnologia@awsales.io` é a IA que conecta, e essa fica: é um SDR
-   como os outros, só que não é gente.)
-
-   Então é o contrário: só entra quem está NESTA lista. Pedaços de nome em
-   minúscula e sem acento. Contratou SDR, é aqui que se adiciona — e é o único
-   lugar do arquivo, então cards, gráficos, tabela e matriz mudam juntos. */
 export const SDRS = ["gabriel frizzo", "leticia", "dominique", "nicolas",
                      "tecnologia@awsales"];
 
@@ -1196,30 +944,12 @@ export const ehSdr = (nome: string | null | undefined): boolean => {
   return !!n && SDRS.some(x => n.includes(x));
 };
 
-/* Dois cortes, de propósito.
-
-   `filtraTudo` é a empresa inteira: é o que os cards do topo contam, e é o que
-   tem que bater com o Pipedrive. Se o painel disser 309 OPS e o Pipedrive
-   disser 320, ninguém acredita no painel — mesmo estando os dois certos.
-
-   `filtraSdr` é só o time: é o que a tabela, os gráficos por SDR e a matriz de
-   requalificação usam, porque ali a pergunta é "quem entregou", e uma linha do
-   Renato com 1 negócio não é resposta. A diferença entre os dois aparece na
-   tela pela `foraDaLista` — não some. */
 export const filtraTudo = (rows: NegocioSdr[], f: FiltroSdr): NegocioSdr[] =>
   rows.filter(d => (!f.sdr || d.sdr === f.sdr) && (!f.canal || d.canal === f.canal));
 
 export const filtraSdr = (rows: NegocioSdr[], f: FiltroSdr): NegocioSdr[] =>
   filtraTudo(rows, f).filter(d => ehSdr(d.sdr));
 
-/* O que ficou de fora, e não pode sumir calado.
-
-   O Pipedrive conta 999 conexões no mês; a página conta 707. A diferença não é
-   erro: são leads sem o campo "Vendedor SDR" e leads com um nome que não é de
-   SDR — só o `tecnologia@awsales.io` responde por 236. Sem este bloco o painel
-   mostraria 707 e ninguém saberia onde foram parar os outros 292.
-
-   Não passa por `filtraSdr` de propósito: é justamente o avesso dele. */
 export function foraDaLista(rows: NegocioSdr[], f: FiltroSdr) {
   const fora = rows.filter(d => !ehSdr(d.sdr) && (!f.canal || d.canal === f.canal));
   const conta = (arr: NegocioSdr[]) => ({
@@ -1241,8 +971,6 @@ export function foraDaLista(rows: NegocioSdr[], f: FiltroSdr) {
   };
 }
 
-/** O funil da operação — todo mundo, para bater com o Pipedrive.
-    Cada etapa pela sua própria data. */
 export function funilSdr(rows: NegocioSdr[], f: FiltroSdr) {
   const r = filtraTudo(rows, f);
   const conectados = r.filter(d => noPeriodo(d.dConexao, f));
@@ -1252,12 +980,9 @@ export function funilSdr(rows: NegocioSdr[], f: FiltroSdr) {
   const taxa = (a: number, b: number) => (b ? a / b : null);
   return {
     conectados, sql, ops, sal,
-    /* Aceite = SAL ÷ OPS. Aceite é sobre o que foi OFERECIDO ao closer: de
-       cada oportunidade passada, quantas ele aceitou. Dividir por conectados
-       misturava duas perguntas — quanto o SDR conecta e quanto do que ele
-       passa presta — e escondia a segunda, que é a que dói. */
+
     aceite: taxa(sal.length, ops.length),
-    /* a ponta a ponta, que some do card de aceite mas continua sendo útil */
+
     taxaGeral: taxa(sal.length, conectados.length),
     taxaSql: taxa(sql.length, conectados.length),
     taxaOps: taxa(ops.length, sql.length),
@@ -1265,7 +990,6 @@ export function funilSdr(rows: NegocioSdr[], f: FiltroSdr) {
   };
 }
 
-/** Uma linha por SDR. Ordenada por SAL, que é o que ele entrega. */
 export function porSdr(rows: NegocioSdr[], f: FiltroSdr) {
   const r = filtraSdr(rows, f);
   return [...new Set(r.map(d => d.sdr))].map(sdr => {
@@ -1286,10 +1010,6 @@ export function porSdr(rows: NegocioSdr[], f: FiltroSdr) {
   }).sort((a, b) => b.sal - a.sal || b.conectados - a.conectados);
 }
 
-/* Uma etapa por SDR, repartida pela nota do lead — o gráfico do Insights.
-   A nota é a do FORMULÁRIO (`lead`), não a requalificação: `leadSql` é pouco
-   preenchido e o gráfico viraria uma barra de "sem nota". A requalificação tem
-   lugar próprio, na matriz abaixo. */
 export const NOTAS = ["A", "B", "C", "D", "E", "F"];
 
 export type EtapaSdr = "conectados" | "sql" | "ops" | "sal";
@@ -1301,8 +1021,6 @@ const DATA_DA_ETAPA: Record<EtapaSdr, (d: NegocioSdr) => string | null> = {
   sal: d => d.dSal,
 };
 
-/* A mesma conta serve para SQL, OPS e SAL — muda só qual data manda. Assim a
-   página desenha os três gráficos lado a lado sem repetir código. */
 export function porNota(rows: NegocioSdr[], f: FiltroSdr, etapa: EtapaSdr) {
   const quando = DATA_DA_ETAPA[etapa];
   const dentro = filtraSdr(rows, f).filter(d => noPeriodo(quando(d), f));
@@ -1319,21 +1037,12 @@ export function porNota(rows: NegocioSdr[], f: FiltroSdr, etapa: EtapaSdr) {
   return { etapa, total: dentro.length, porSdr: porSdrNota };
 }
 
-/** Atalho antigo, mantido para não quebrar quem já chamava. */
 export const salPorNota = (rows: NegocioSdr[], f: FiltroSdr) => porNota(rows, f, "sal");
 
-/* ---------- requalificação: como chegou × como ficou ----------
-   O lead entra com uma nota do formulário e o SDR reavalia. Subir tudo para A
-   passa lead ruim adiante; descer tudo derruba lead bom. A matriz mostra os
-   dois de uma vez, e o resumo diz em que direção cada SDR erra.
-
-   A ordem das notas é A > B > C > D > E > F, então "subiu" é ir para uma letra
-   ANTERIOR no alfabeto. É contraintuitivo de ler no código; por isso está
-   escrito aqui. */
 export function requalificacao(rows: NegocioSdr[], f: FiltroSdr) {
   const r = filtraSdr(rows, f)
     .filter(d => noPeriodo(d.dSql, f) || noPeriodo(d.dConexao, f))
-    .filter(d => d.lead && d.leadSql);          // só quem tem os dois lados
+    .filter(d => d.lead && d.leadSql);
 
   const pos = (n: string) => NOTAS.indexOf(n);
   const direcao = (d: NegocioSdr) => {
@@ -1364,10 +1073,10 @@ export function requalificacao(rows: NegocioSdr[], f: FiltroSdr) {
     porSdr: [...new Set(r.map(d => d.sdr))]
       .map(sdr => ({ sdr, ...conta(r.filter(d => d.sdr === sdr)) }))
       .sort((a, b) => b.total - a.total),
-    /* Quantos ficaram de fora por não ter os dois lados preenchidos. Sem isto
-       o painel diz "68% manteve" sem avisar que a conta é sobre um terço. */
+
     semOsDoisLados: filtraSdr(rows, f)
       .filter(d => noPeriodo(d.dSql, f) || noPeriodo(d.dConexao, f))
       .filter(d => !d.lead || !d.leadSql).length,
   };
 }
+```

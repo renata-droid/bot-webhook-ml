@@ -194,13 +194,19 @@ export function serie(deals: Negocio[], f: Filtros) {
                return x.toISOString().slice(0, 10); })();
 
   const buckets = new Map<string, { opp: number; won: number; churn: number }>();
+  const balde = (k: string) => {
+    if (!buckets.has(k)) buckets.set(k, { opp: 0, won: 0, churn: 0 });
+    return buckets.get(k)!;
+  };
+  const chave = (iso: string) => rotulo(new Date(iso + "T12:00:00"));
+
   for (const d of base(deals, f)) {
     const r = dataRef(d, f); if (!r) continue;
-    const k = rotulo(new Date(r + "T12:00:00"));
-    if (!buckets.has(k)) buckets.set(k, { opp: 0, won: 0, churn: 0 });
-    const b = buckets.get(k)!;
-    b.opp++; if (d.s === "won") b.won++; if (d.churn) b.churn++;
+    const b = balde(chave(r));
+    if (d.s === "won") b.won++;
+    if (d.churn) b.churn++;
   }
+  for (const d of oppsNoPeriodo(deals, f)) balde(chave(d.diaOpp as string)).opp++;
   const chaves = [...buckets.keys()].sort();
   return {
     porMes,

@@ -79,5 +79,13 @@ ok("o card do topo usa o mesmo denominador da tabela", () => {
   assert.equal(t.conv, 0.5);
 });
 
+ok("o grafico conta OPP pela semana do Dia Oportunidade", () => {
+  const s = N.serie(deals, f);
+  const total = s.pontos
+    ? s.pontos.reduce((a, x) => a + x.opp, 0)
+    : s.linhas.reduce((a, x) => a + x.opp, 0);
+  assert.equal(total, opps.length);
+});
+
 console.log(`\n${n} conferências` + (falhou ? " — TEM FALHA" : ", todas passando"));
 process.exit(falhou ? 1 : 0);
