@@ -352,16 +352,21 @@ async function historicoChurn(m: Meta, ate: string) {
   // Como já estamos varrendo todos os ganhos de 12 meses, o total recebido por mês
   // sai de graça aqui — sem ele o gráfico não teria denominador.
   const meses = new Map<string, { ganhos: number; valor: number; recebido: number }>();
-  // em blocos de 3 meses: 4 respostas pequenas em vez de uma gigante
-  for (let bloco = 3; bloco >= 0; bloco--) {
+  /* Um mês por chamada.
+     Eram três, e três é o mesmo formato que zerou o painel: a timeline devolve
+     o negócio completo, a resposta cresce com a janela, e passado certo
+     tamanho o Pipedrive manda 200 com o corpo vazio. Aqui é pior de perceber,
+     porque a falha cai no `catch` abaixo e some calada — o gráfico de churn
+     ficaria com meses faltando e ninguém saberia por quê. */
+  for (let bloco = 11; bloco >= 0; bloco--) {
     const ini = new Date(fim);
-    ini.setUTCMonth(ini.getUTCMonth() - (bloco + 1) * 3 + 1);
+    ini.setUTCMonth(ini.getUTCMonth() - bloco);
     ini.setUTCDate(1);
     const de = ini.toISOString().slice(0, 10);
     let brutos: any[] = [];
     try {
       const q = new URLSearchParams({
-        start_date: de, interval: "month", amount: "3",
+        start_date: de, interval: "month", amount: "1",
         field_key: "won_time", exclude_deleted_deals: "1",
       });
       const r = await pd(`/api/v1/deals/timeline?${q}`);
