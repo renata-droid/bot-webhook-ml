@@ -14,6 +14,7 @@ const C = {
   diaReuniao:  "c8a99e668e9913e2362556c43a03bd821db81006",
 };
 const HOJE = new Date().toISOString().slice(0, 10);
+const soData = (v) => String(v).slice(0, 10);
 const dd = (n) => new Date(Date.parse(HOJE + "T12:00:00Z") + n * 86400e3).toISOString().slice(0, 10);
 const DE = dd(-25), ATE = HOJE;
 
@@ -70,8 +71,20 @@ const dublê = (u) => {
   if (p === "/api/v1/products")  return { data: [] };
   if (p === "/api/v1/notes")     return { data: [] };
   if (p.startsWith("/api/v1/deals/") && p.endsWith("/products")) return { data: [] };
-  if (p === "/api/v1/deals/timeline")
-    return { data: [{ deals: q.get("field_key") === "won_time" ? [ganho] : [] }] };
+  if (p === "/api/v1/deals/timeline") {
+    /* A resposta da timeline cresce com o `amount`, porque ela devolve o
+       negócio COMPLETO. Passado certo tamanho o Pipedrive responde 200 com o
+       corpo vazio, sem dizer que desistiu — foi o que zerou o painel no dia 25
+       do mês, quando o `amount` chegou a 25. Com TIMELINE_ESTOURA ligado, o
+       dublê reproduz isso. */
+    if (TIMELINE_ESTOURA && Number(q.get("amount")) > 7) return "VAZIO";
+    const ini = q.get("start_date");
+    const fim = new Date(Date.parse(ini + "T12:00:00Z") + Number(q.get("amount")) * 86400e3)
+      .toISOString().slice(0, 10);
+    const dentro = (iso) => iso >= ini && iso < fim;
+    return { data: [{ deals: q.get("field_key") === "won_time"
+      ? (dentro(soData(ganho.won_time)) ? [ganho] : []) : [] }] };
+  }
   if (p === "/api/v2/deals") {
     if (q.get("status") !== "open") return { data: [], additional_data: {} };
     const funil = q.get("pipeline_id");
@@ -98,6 +111,7 @@ writeFileSync(origIndex, execFileSync("git", ["show", "67463bd:supabase/function
   { cwd: process.cwd(), encoding: "utf8" }));
 
 let CONTA_GRANDE = false;
+let TIMELINE_ESTOURA = false;
 const bOrig = empacota(origIndex, "orig");
 const bNovo = empacota("supabase/functions/live/index.ts", "novo");
 const A = await roda(bOrig, dublê, { de: DE, ate: ATE });
@@ -192,6 +206,29 @@ ok("conta grande + um dia só: a nova traz a carteira inteira", () =>
 ok("e ela vai buscar funil por funil", () =>
   assert.ok(B2.chamadas.some((c) => c.includes("pipeline_id=20")),
     "nenhuma chamada por funil: " + B2.chamadas.filter((c) => c.includes("v2/deals")).join(" | ")));
+
+/* ---- a manha em que o painel amanheceu zerado ----
+   Mesma conta, mesmo codigo, mesmo token: a unica coisa que tinha mudado era
+   o calendario. No dia 24 a chamada pedia 24 dias e voltava inteira; no dia 25
+   pedia 25 e voltava vazia. */
+TIMELINE_ESTOURA = true;
+const A3 = await roda(bOrig, dublê, { de: ATE.slice(0, 8) + "01", ate: ATE });
+const B3 = await roda(bNovo, dublê, { de: ATE.slice(0, 8) + "01", ate: ATE });
+
+ok("timeline grande demais: a versao de hoje morre", () => {
+  assert.equal(A3.json.ok, false, "a antiga devia ter falhado");
+  assert.match(A3.json.erro, /VAZIO|JSON/);
+});
+
+ok("timeline grande demais: a nova sobrevive", () =>
+  assert.equal(B3.json.ok, true, "nova: " + B3.json.erro));
+
+ok("nenhuma chamada pede mais de 7 dias de timeline", () => {
+  const grandes = B3.chamadas.filter((c) => c.includes("timeline"))
+    .map((c) => Number(new URLSearchParams(c.split("?")[1]).get("amount")))
+    .filter((x) => x > 7);
+  assert.deepEqual(grandes, []);
+});
 
 console.log(`\n${n} conferências` + (falhou ? " — TEM FALHA" : ", todas passando"));
 process.exit(falhou ? 1 : 0);

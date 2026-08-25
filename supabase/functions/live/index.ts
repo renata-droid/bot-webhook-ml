@@ -265,13 +265,34 @@ function usuario(m: Meta, v: any): { id: number | null; nome: string | null } {
 // Ganhos e criados: a timeline filtra por data no próprio servidor do Pipedrive,
 // no campo que a gente escolher. É o mesmo critério do card [AE] Ganhos
 // ("Ganho em" = won_time), e foi o que fez os números baterem.
+/* Em blocos de poucos dias, e não o período inteiro de uma vez.
+   =============================================================
+   A timeline devolve o negócio COMPLETO, com todos os campos customizados.
+   Pedindo o mês inteiro numa chamada só, a resposta cresce um dia a cada dia
+   que passa — e num certo ponto o Pipedrive responde "200 OK" e manda o corpo
+   vazio, sem dizer que desistiu.
+
+   Foi o que derrubou o painel numa manhã: no dia 24 do mês a chamada pedia
+   `amount=24` e voltava inteira; no dia 25 pedia `amount=25` e voltava vazia.
+   Nada tinha mudado no código nem na conta — só a conta do mês tinha crescido
+   mais um dia.
+
+   Sete dias por bloco mantém cada resposta pequena o ano todo. O custo são
+   algumas chamadas a mais, que é barato perto de a tela zerar sem aviso. */
+const DIAS_POR_BLOCO = 7;
+
 async function porData(campo: "won_time" | "add_time", de: string, dias: number) {
-  const q = new URLSearchParams({
-    start_date: de, interval: "day", amount: String(dias),
-    field_key: campo, exclude_deleted_deals: "1",
-  });
-  const r = await pd(`/api/v1/deals/timeline?${q}`);
-  return (r.data ?? []).flatMap((p: any) => p.deals ?? []);
+  const saida: any[] = [];
+  for (let salto = 0; salto < dias; salto += DIAS_POR_BLOCO) {
+    const q = new URLSearchParams({
+      start_date: adiante(de, salto), interval: "day",
+      amount: String(Math.min(DIAS_POR_BLOCO, dias - salto)),
+      field_key: campo, exclude_deleted_deals: "1",
+    });
+    const r = await pd(`/api/v1/deals/timeline?${q}`);
+    for (const p of r.data ?? []) for (const d of p.deals ?? []) saida.push(d);
+  }
+  return saida;
 }
 
 // Perdidos: a timeline não devolve nada para lost_time — por isso o painel

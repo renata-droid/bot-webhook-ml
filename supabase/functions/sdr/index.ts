@@ -100,6 +100,9 @@ const dia = (v: any) => (typeof v === "string" && v.length >= 10 ? v.slice(0, 10
 const cf = (d: any, h: string) => d?.custom_fields?.[h] ?? d?.[h] ?? null;
 const atras = (iso: string, n: number) =>
   new Date(Date.parse(iso + "T12:00:00Z") - n * 86400000).toISOString().slice(0, 10);
+const adiante = (iso: string, n: number) =>
+  new Date(Date.parse(iso + "T12:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+const DIAS_POR_BLOCO = 7;
 
 /* ---------- metadados ---------- */
 type Meta = {
@@ -161,22 +164,22 @@ async function buscar(m: Meta, desde: string, ate: string) {
   const vistos = new Set<number>();
   let brutos = 0, blocos = 0, truncado = false;
 
-  // quantos meses cobrir, do início da janela até o fim do período
-  const ini = new Date(Date.parse(desde + "T12:00:00Z"));
-  ini.setUTCDate(1);
-  const fim = new Date(Date.parse(ate + "T12:00:00Z"));
-  const meses = (fim.getUTCFullYear() - ini.getUTCFullYear()) * 12
-              + (fim.getUTCMonth() - ini.getUTCMonth()) + 1;
+  /* Blocos de poucos dias, não de meses.
+     A timeline devolve o negócio COMPLETO. Pedindo três meses de uma vez, a
+     resposta fica grande demais e o Pipedrive devolve "200 OK" com o corpo
+     vazio, sem dizer que desistiu — foi assim que a `live` amanheceu zerada um
+     dia. Aqui a janela é de meio ano, então o risco seria ainda maior. */
+  const diasTotais = Math.round(
+    (Date.parse(ate + "T12:00:00Z") - Date.parse(desde + "T12:00:00Z")) / 86400000) + 1;
 
-  for (let passo = 0; passo < meses; passo += 3) {
-    const bloco = new Date(ini);
-    bloco.setUTCMonth(bloco.getUTCMonth() + passo);
-    const de = bloco.toISOString().slice(0, 10);
+  for (let salto = 0; salto < diasTotais; salto += DIAS_POR_BLOCO) {
+    const de = adiante(desde, salto);
     blocos++;
     let lote: any[] = [];
     try {
       const q = new URLSearchParams({
-        start_date: de, interval: "month", amount: String(Math.min(3, meses - passo)),
+        start_date: de, interval: "day",
+        amount: String(Math.min(DIAS_POR_BLOCO, diasTotais - salto)),
         field_key: "add_time", exclude_deleted_deals: "1",
       });
       const r = await pd(`/api/v1/deals/timeline?${q}`);
