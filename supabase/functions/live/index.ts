@@ -130,7 +130,26 @@ async function pd(caminho: string, tentativa = 1): Promise<any> {
     return pd(caminho, tentativa + 1);
   }
   if (!r.ok) throw new Error(`Pipedrive ${r.status} em ${caminho}: ${await r.text()}`);
-  return r.json();
+
+  /* Corpo vazio com status 2xx.
+     ===========================
+     Acontece: o Pipedrive engasga e devolve 200 sem nada dentro. Antes isto
+     virava "Unexpected end of JSON input" — mensagem que não diz QUAL chamada
+     falhou, e sem isso não dá para consertar nem para saber se é transitório.
+
+     É transitório, então tenta de novo. Se insistir, o erro passa a dizer o
+     endereço e o começo do que veio. */
+  const txt = await r.text();
+  if (!txt.trim()) {
+    if (tentativa <= 4) { await pausa(800 * tentativa); return pd(caminho, tentativa + 1); }
+    throw new Error(`Pipedrive devolveu ${r.status} com o corpo VAZIO em ${caminho} ` +
+                    `(${tentativa} tentativas). Costuma ser instabilidade do Pipedrive.`);
+  }
+  try { return JSON.parse(txt); }
+  catch {
+    throw new Error(`Pipedrive devolveu ${r.status} com corpo ilegível em ${caminho}: ` +
+                    txt.slice(0, 200));
+  }
 }
 
 /* ---------- metadados, com cache entre invocações quentes ---------- */

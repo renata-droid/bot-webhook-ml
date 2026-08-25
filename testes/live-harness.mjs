@@ -37,9 +37,9 @@ export async function roda(bundle, pipedrive, { de, ate }) {
     chamadas.push(u.pathname + u.search);
     const corpo = pipedrive(u);
     if (corpo === undefined) throw new Error("endpoint sem dublê: " + u.pathname);
-    return new Response(JSON.stringify(corpo), {
-      status: 200, headers: { "content-type": "application/json" },
-    });
+    // o dublê pode devolver texto cru para simular corpo vazio ou resposta torta
+    const cru = corpo === "VAZIO" ? "" : typeof corpo === "string" ? corpo : JSON.stringify(corpo);
+    return new Response(cru, { status: 200, headers: { "content-type": "application/json" } });
   };
   // cada import precisa de URL única, senão o Node devolve o módulo em cache
   // com o META da rodada anterior dentro
