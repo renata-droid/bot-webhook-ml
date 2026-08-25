@@ -105,6 +105,19 @@ export const base = (deals: Negocio[], f: Filtros): Negocio[] =>
   deals.filter(d => { const r = dataRef(d, f); return !!r && r >= f.de && r <= f.ate; })
        .filter(d => filtrosComuns(d, f));
 
+/* OPP é UM campo só: "Dia Oportunidade". O Pipedrive conta assim, a página
+   SDR conta assim, e a de Closers passa a contar assim também — 322 em agosto
+   é 322 nas duas telas.
+
+   Não é o mesmo recorte de `base()`. `base()` pega quem teve DESFECHO no
+   período (e, para negócio aberto, cai na data de criação); OPP pega quem
+   VIROU OPORTUNIDADE no período, tenha fechado ou não. Contar oportunidade
+   pela data de desfecho inflava o número com os abertos e afundava a
+   conversão: 41 de 458 dava 9,0%, quando a leitura certa é 41 de 322. */
+export const oppsNoPeriodo = (deals: Negocio[], f: Filtros): Negocio[] =>
+  deals.filter(d => !!d.diaOpp && d.diaOpp >= f.de && d.diaOpp <= f.ate)
+       .filter(d => filtrosComuns(d, f));
+
 /** Carteira aberta de hoje — NÃO depende do período, de propósito. */
 export const carteira = (deals: Negocio[], f: Filtros): Negocio[] =>
   deals.filter(d => d.s === "open").filter(d => filtrosComuns(d, f));
@@ -151,7 +164,10 @@ function cicloDe(won: Negocio[]) {
 
 export type Agregado = ReturnType<typeof agg>;
 
-export function agg(rows: Negocio[], f: Filtros, ret?: Negocio[]) {
+/* `opps` é opcional para não quebrar quem já chamava `agg` com três
+   argumentos. Quando vem, ela manda no denominador: a conversão passa a ser
+   ganhos ÷ oportunidades do período, e não ganhos ÷ tudo que apareceu. */
+export function agg(rows: Negocio[], f: Filtros, ret?: Negocio[], opps?: Negocio[]) {
   const won = rows.filter(d => d.s === "won");
   const lost = rows.filter(d => d.s === "lost");
   const open = rows.filter(d => d.s === "open");
@@ -161,16 +177,17 @@ export function agg(rows: Negocio[], f: Filtros, ret?: Negocio[]) {
   const reemb = churn.reduce((a, d) => a + (d.reemb || 0), 0);
   const comNota = rows.filter(d => d.an);
   const lista = won.reduce((a, d) => a + (d.precoLista || 0), 0);
-  const conv = rows.length ? won.length / rows.length : 0;
+  const nOpp = opps ? opps.length : rows.length;
+  const conv = nOpp ? won.length / nOpp : 0;
   return {
-    opp: rows.length, won: won.length, lost: lost.length, ret: emR.length,
+    opp: nOpp, won: won.length, lost: lost.length, ret: emR.length,
     outras: open.length - open.filter(d => ETAPAS_RET(f).includes(d.et)).length,
     q: emR.filter(d => d.tmp === "Quente").length,
     m: emR.filter(d => d.tmp === "Morno").length,
     f: emR.filter(d => d.tmp === "Frio").length,
     churn: churn.length, reemb,
     conv,
-    net: rows.length ? (won.length - churn.length) / rows.length : 0,
+    net: nOpp ? (won.length - churn.length) / nOpp : 0,
     receita, receitaLiq: receita - reemb,
     ticket: won.length ? receita / won.length : 0,
     score: comNota.length ? comNota.reduce((a, d) => a + (d.an as Analise).nota, 0) / comNota.length : null,
@@ -557,17 +574,18 @@ export function perfilCloser(rows: Negocio[], v: string) {
 }
 
 /** Os números do time, no topo da página. */
-export function resumoTime(noPeriodo: Negocio[], f: Filtros) {
+export function resumoTime(noPeriodo: Negocio[], f: Filtros, opps?: Negocio[]) {
   const perfis = [...new Set(noPeriodo.map(d => d.v))].map(v => perfilCloser(noPeriodo, v));
   const won = noPeriodo.filter(d => d.s === "won");
   const churn = noPeriodo.filter(d => d.churn);
   const receita = won.reduce((a, d) => a + d.val, 0);
   const ciclos = perfis.map(p => p.ciclo).filter((x): x is number => x != null);
+  const nOpp = opps ? opps.length : noPeriodo.length;
   return {
     perfis,
-    opp: noPeriodo.length, won: won.length, churn: churn.length, receita,
-    conv: noPeriodo.length ? won.length / noPeriodo.length : 0,
-    net: noPeriodo.length ? (won.length - churn.length) / noPeriodo.length : 0,
+    opp: nOpp, won: won.length, churn: churn.length, receita,
+    conv: nOpp ? won.length / nOpp : 0,
+    net: nOpp ? (won.length - churn.length) / nOpp : 0,
     ticket: won.length ? receita / won.length : 0,
     ciclo: ciclos.length ? ciclos.reduce((a, b) => a + b, 0) / ciclos.length : null,
   };
@@ -576,21 +594,25 @@ export function resumoTime(noPeriodo: Negocio[], f: Filtros) {
 /* Vendedor › Produto › Lead, ordenado por RECEITA em cada nível — quem vendeu
    mais fica em cima. Empate em zero desempata por volume de oportunidades e
    depois por nome, para a ordem não dançar entre uma carga e outra. */
-function porReceita<T>(lista: Negocio[], chave: (d: Negocio) => string, f: Filtros) {
-  return [...new Set(lista.map(chave))]
+function porReceita<T>(lista: Negocio[], chave: (d: Negocio) => string, f: Filtros,
+                      opps: Negocio[] = []) {
+  /* A chave vem dos DOIS lados: um closer pode ter oportunidade no mês sem
+     nenhum desfecho, e ele tem que aparecer na tabela mesmo assim. */
+  return [...new Set([...lista.map(chave), ...opps.map(chave)])]
     .map(k => {
       const r = lista.filter(d => chave(d) === k);
-      const a = agg(r, f);
-      return { k, r, a, receita: a.receita, opp: a.opp };
+      const o = opps.filter(d => chave(d) === k);
+      const a = agg(r, f, undefined, o);
+      return { k, r, o, a, receita: a.receita, opp: a.opp };
     })
     .sort((x, y) => y.receita - x.receita || y.opp - x.opp
                  || String(x.k).localeCompare(String(y.k), "pt-BR"));
 }
 
-export function hierarquia(noPeriodo: Negocio[], f: Filtros) {
-  return porReceita(noPeriodo, d => d.v, f).map(v => ({
+export function hierarquia(noPeriodo: Negocio[], f: Filtros, opps: Negocio[] = []) {
+  return porReceita(noPeriodo, d => d.v, f, opps).map(v => ({
     ...v,
-    produtos: porReceita(v.r, d => d.p, f).map(p => ({
+    produtos: porReceita(v.r, d => d.p, f, v.o).map(p => ({
       ...p,
       negocios: [...p.r].sort((a, b) => b.val - a.val),
     })),
