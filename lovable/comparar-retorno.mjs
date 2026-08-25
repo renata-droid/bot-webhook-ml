@@ -13,11 +13,28 @@
    Uso:  node --experimental-strip-types lovable/comparar-retorno.mjs           */
 
 import { chromium } from "playwright";
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { montaPreview } from "../preview/montar.mjs";
 import * as N from "./calculos.ts";
 
 const arquivo = montaPreview();
-const navegador = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined });
+/* O container pode trazer uma versao de Chromium diferente da que a
+   playwright instalada espera. Procura a que existe de fato. */
+function achaChrome() {
+  if (process.env.PLAYWRIGHT_CHROMIUM) return process.env.PLAYWRIGHT_CHROMIUM;
+  const raiz = process.env.PLAYWRIGHT_BROWSERS_PATH || "/opt/pw-browsers";
+  for (const pasta of (existsSync(raiz) ? readdirSync(raiz) : []).sort().reverse()) {
+    if (!/^chromium/.test(pasta)) continue;
+    for (const bin of ["chrome-linux/chrome", "chrome-linux/headless_shell"]) {
+      const c = join(raiz, pasta, bin);
+      if (existsSync(c)) return c;
+    }
+  }
+  return undefined;
+}
+
+const navegador = await chromium.launch({ executablePath: achaChrome() });
 const aba = await navegador.newPage({ viewport: { width: 1600, height: 1200 } });
 await aba.goto("file://" + arquivo);
 await aba.waitForTimeout(800);

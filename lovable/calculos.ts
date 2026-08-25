@@ -1087,8 +1087,27 @@ export type FiltroSdr = { de: string; ate: string; sdr?: string; canal?: string 
 
 const noPeriodo = (x: string | null, f: FiltroSdr) => !!x && x >= f.de && x <= f.ate;
 
+/* Quem NÃO é SDR mas aparece no campo "Vendedor SDR".
+   O time de CS/Buddy mexe no negócio e acaba gravado ali em um punhado de
+   casos (1 ou 2 cada), o que polui o gráfico por SDR. São pedaços de nome em
+   minúscula e sem acento: basta um deles aparecer no nome para a linha sair.
+   Trocar de gente é editar esta lista — nada mais no arquivo depende dela. */
+export const NAO_SDR = ["robert", "suzane", "sartorelli", "allana", "castagne"];
+
+const semAcento = (x: string) =>
+  x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+export const ehSdr = (nome: string | null | undefined): boolean => {
+  const n = semAcento(String(nome ?? ""));
+  return !!n.trim() && !NAO_SDR.some(x => n.includes(x));
+};
+
+/* Toda a página passa por aqui, então o corte do CS vale para os cards, para
+   o gráfico, para a tabela e para a matriz de uma vez só. */
 export const filtraSdr = (rows: NegocioSdr[], f: FiltroSdr): NegocioSdr[] =>
-  rows.filter(d => (!f.sdr || d.sdr === f.sdr) && (!f.canal || d.canal === f.canal));
+  rows.filter(d => ehSdr(d.sdr)
+                && (!f.sdr || d.sdr === f.sdr)
+                && (!f.canal || d.canal === f.canal));
 
 /** O funil do time. Cada etapa pela sua própria data. */
 export function funilSdr(rows: NegocioSdr[], f: FiltroSdr) {

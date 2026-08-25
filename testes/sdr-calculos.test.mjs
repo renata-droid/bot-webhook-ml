@@ -87,5 +87,27 @@ ok("filtro por SDR corta tudo junto", () => {
   assert.equal(g.sal.length, 1);
 });
 
+ok("o time de CS nao entra na pagina de SDR", () => {
+  const cs = [
+    mk({ dConexao: "2026-08-12", dSql: "2026-08-12", dSal: "2026-08-13", sdr: "Robert Rodrigues" }),
+    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "Suzane Oroz" }),
+    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "Wallace Sartorelli" }),
+    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "Allana Bueno" }),
+    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "Luis Castagne" }),
+  ];
+  const com = N.funilSdr([...rows, ...cs], f);
+  assert.deepEqual(
+    { c: com.conectados.length, sal: com.sal.length },
+    { c: fun.conectados.length, sal: fun.sal.length });
+  assert.deepEqual(N.porSdr([...rows, ...cs], f).map(l => l.sdr).sort(), ["Gabriel", "Leticia"]);
+});
+
+ok("negocio sem SDR preenchido tambem fica de fora", () =>
+  assert.equal(N.funilSdr([...rows, mk({ dConexao: "2026-08-12", sdr: "" })], f)
+                .conectados.length, fun.conectados.length));
+
+ok("acento no nome nao escapa do corte", () =>
+  assert.equal(N.ehSdr("Róbert Rodrígues"), false));
+
 console.log(`\n${n} conferências` + (falhou ? " — TEM FALHA" : ", todas passando"));
 process.exit(falhou ? 1 : 0);
