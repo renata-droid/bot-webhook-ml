@@ -1092,13 +1092,15 @@ const noPeriodo = (x: string | null, f: FiltroSdr) => !!x && x >= f.de && x <= f
    O campo "Vendedor SDR" do Pipedrive não é confiável para dizer isso: cai ali
    gente do CS, closer, gente que já saiu da empresa e até e-mail de robô. Uma
    lista de exclusão não resolve, porque a cada mês aparece um nome novo — foi
-   o que aconteceu: tiramos o CS e sobraram Milena, Lucas, Andrea, Renato,
-   Aline e tecnologia@awsales.io.
+   o que aconteceu: tiramos o CS e sobraram Milena, Lucas, Andrea, Renato e
+   Aline. (A `tecnologia@awsales.io` é a IA que conecta, e essa fica: é um SDR
+   como os outros, só que não é gente.)
 
    Então é o contrário: só entra quem está NESTA lista. Pedaços de nome em
    minúscula e sem acento. Contratou SDR, é aqui que se adiciona — e é o único
    lugar do arquivo, então cards, gráficos, tabela e matriz mudam juntos. */
-export const SDRS = ["gabriel frizzo", "leticia", "dominique", "nicolas"];
+export const SDRS = ["gabriel frizzo", "leticia", "dominique", "nicolas",
+                     "tecnologia@awsales"];
 
 const semAcento = (x: string) =>
   x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -1108,12 +1110,21 @@ export const ehSdr = (nome: string | null | undefined): boolean => {
   return !!n && SDRS.some(x => n.includes(x));
 };
 
-/* TUDO da página passa por aqui. É o que garante que a lista de SDR seja a
-   mesma nos cards, nos gráficos, na tabela e na matriz de requalificação. */
+/* Dois cortes, de propósito.
+
+   `filtraTudo` é a empresa inteira: é o que os cards do topo contam, e é o que
+   tem que bater com o Pipedrive. Se o painel disser 309 OPS e o Pipedrive
+   disser 320, ninguém acredita no painel — mesmo estando os dois certos.
+
+   `filtraSdr` é só o time: é o que a tabela, os gráficos por SDR e a matriz de
+   requalificação usam, porque ali a pergunta é "quem entregou", e uma linha do
+   Renato com 1 negócio não é resposta. A diferença entre os dois aparece na
+   tela pela `foraDaLista` — não some. */
+export const filtraTudo = (rows: NegocioSdr[], f: FiltroSdr): NegocioSdr[] =>
+  rows.filter(d => (!f.sdr || d.sdr === f.sdr) && (!f.canal || d.canal === f.canal));
+
 export const filtraSdr = (rows: NegocioSdr[], f: FiltroSdr): NegocioSdr[] =>
-  rows.filter(d => ehSdr(d.sdr)
-                && (!f.sdr || d.sdr === f.sdr)
-                && (!f.canal || d.canal === f.canal));
+  filtraTudo(rows, f).filter(d => ehSdr(d.sdr));
 
 /* O que ficou de fora, e não pode sumir calado.
 
@@ -1144,9 +1155,10 @@ export function foraDaLista(rows: NegocioSdr[], f: FiltroSdr) {
   };
 }
 
-/** O funil do time. Cada etapa pela sua própria data. */
+/** O funil da operação — todo mundo, para bater com o Pipedrive.
+    Cada etapa pela sua própria data. */
 export function funilSdr(rows: NegocioSdr[], f: FiltroSdr) {
-  const r = filtraSdr(rows, f);
+  const r = filtraTudo(rows, f);
   const conectados = r.filter(d => noPeriodo(d.dConexao, f));
   const sql        = r.filter(d => noPeriodo(d.dSql, f));
   const ops        = r.filter(d => noPeriodo(d.dOpp, f));

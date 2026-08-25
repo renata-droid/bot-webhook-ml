@@ -87,21 +87,33 @@ ok("filtro por SDR corta tudo junto", () => {
   assert.equal(g.sal.length, 1);
 });
 
-ok("so quem esta na lista de SDR entra na pagina", () => {
+ok("os cards contam todo mundo, para bater com o Pipedrive", () => {
   const fora = [
-    mk({ dConexao: "2026-08-12", dSql: "2026-08-12", dSal: "2026-08-13", sdr: "Robert Rodrigues" }),
-    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "Allana Bueno" }),
-    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "Milena Bragiatto" }),
-    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "tecnologia@awsales.io" }),
-    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "" }),
+    mk({ dConexao: "2026-08-12", dSql: "2026-08-12", dOpp: "2026-08-12", dSal: "2026-08-13",
+         sdr: "Robert Rodrigues" }),
+    mk({ dConexao: "2026-08-12", dOpp: "2026-08-12", sdr: "Renato Benedetti" }),
+    mk({ dConexao: "2026-08-12", sdr: "" }),
   ];
   const com = N.funilSdr([...rows, ...fora], f);
-  assert.deepEqual(
-    { c: com.conectados.length, sal: com.sal.length },
-    { c: fun.conectados.length, sal: fun.sal.length });
+  assert.equal(com.conectados.length, fun.conectados.length + 3);
+  assert.equal(com.ops.length, fun.ops.length + 2);
+  assert.equal(com.sal.length, fun.sal.length + 1);
+});
+
+ok("mas o detalhe por SDR so mostra quem esta na lista", () => {
+  const fora = [
+    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "Robert Rodrigues" }),
+    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "Milena Bragiatto" }),
+    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "" }),
+  ];
   assert.deepEqual(N.porSdr([...rows, ...fora], f).map(l => l.sdr).sort(),
                    ["Gabriel Frizzo", "Leticia"]);
+  assert.deepEqual(N.porNota([...rows, ...fora], f, "sal").porSdr.map(l => l.sdr).sort(),
+                   ["Gabriel Frizzo", "Leticia"]);
 });
+
+ok("a IA que conecta conta como SDR", () =>
+  assert.equal(N.ehSdr("tecnologia@awsales.io"), true));
 
 ok("o mesmo corte vale para a matriz de requalificacao", () => {
   const fora = mk({ dConexao: "2026-08-12", dSql: "2026-08-12",
@@ -121,23 +133,21 @@ ok("SQL, OPS e SAL saem da mesma conta, muda so a data", () => {
 ok("acento no nome nao atrapalha a lista", () =>
   assert.equal(N.ehSdr("Letícia Almeida"), true));
 
-ok("o que ficou de fora aparece separado, e fecha com o total", () => {
+ok("o que ficou de fora explica a distancia entre o card e as barras", () => {
   const fora = [
-    mk({ dConexao: "2026-08-12", sdr: "tecnologia@awsales.io" }),
-    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "tecnologia@awsales.io" }),
     mk({ dConexao: "2026-08-12", sdr: "Milena Bragiatto" }),
+    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "Renato Benedetti" }),
     mk({ dConexao: "2026-08-12", sdr: "  " }),
   ];
   const todos = [...rows, ...fora];
-  const f2 = N.foraDaLista(todos, f);
-  assert.equal(f2.semCampo.conectados, 1);
-  assert.equal(f2.outroNome.conectados, 3);
-  assert.equal(f2.nomes[0].nome, "tecnologia@awsales.io");
-  assert.equal(f2.nomes[0].conectados, 2);
-  // 707 = 999 - 292: o de dentro mais o de fora tem que dar o total
-  assert.equal(N.funilSdr(todos, f).conectados.length
-             + f2.semCampo.conectados + f2.outroNome.conectados,
-               todos.filter(d => d.dConexao >= f.de && d.dConexao <= f.ate).length);
+  const x = N.foraDaLista(todos, f);
+  assert.equal(x.semCampo.conectados, 1);
+  assert.equal(x.outroNome.conectados, 2);
+  assert.equal(x.nomes.map(y => y.nome).sort().join(","), "Milena Bragiatto,Renato Benedetti");
+  // card = soma das barras + o que ficou de fora
+  const barras = N.porSdr(todos, f).reduce((a, l) => a + l.conectados, 0);
+  assert.equal(N.funilSdr(todos, f).conectados.length,
+               barras + x.semCampo.conectados + x.outroNome.conectados);
 });
 
 console.log(`\n${n} conferências` + (falhou ? " — TEM FALHA" : ", todas passando"));

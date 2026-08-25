@@ -850,7 +850,8 @@ export type FiltroSdr = { de: string; ate: string; sdr?: string; canal?: string 
 
 const noPeriodo = (x: string | null, f: FiltroSdr) => !!x && x >= f.de && x <= f.ate;
 
-export const SDRS = ["gabriel frizzo", "leticia", "dominique", "nicolas"];
+export const SDRS = ["gabriel frizzo", "leticia", "dominique", "nicolas",
+                     "tecnologia@awsales"];
 
 const semAcento = (x: string) =>
   x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -860,10 +861,11 @@ export const ehSdr = (nome: string | null | undefined): boolean => {
   return !!n && SDRS.some(x => n.includes(x));
 };
 
+export const filtraTudo = (rows: NegocioSdr[], f: FiltroSdr): NegocioSdr[] =>
+  rows.filter(d => (!f.sdr || d.sdr === f.sdr) && (!f.canal || d.canal === f.canal));
+
 export const filtraSdr = (rows: NegocioSdr[], f: FiltroSdr): NegocioSdr[] =>
-  rows.filter(d => ehSdr(d.sdr)
-                && (!f.sdr || d.sdr === f.sdr)
-                && (!f.canal || d.canal === f.canal));
+  filtraTudo(rows, f).filter(d => ehSdr(d.sdr));
 
 export function foraDaLista(rows: NegocioSdr[], f: FiltroSdr) {
   const fora = rows.filter(d => !ehSdr(d.sdr) && (!f.canal || d.canal === f.canal));
@@ -887,7 +889,7 @@ export function foraDaLista(rows: NegocioSdr[], f: FiltroSdr) {
 }
 
 export function funilSdr(rows: NegocioSdr[], f: FiltroSdr) {
-  const r = filtraSdr(rows, f);
+  const r = filtraTudo(rows, f);
   const conectados = r.filter(d => noPeriodo(d.dConexao, f));
   const sql        = r.filter(d => noPeriodo(d.dSql, f));
   const ops        = r.filter(d => noPeriodo(d.dOpp, f));
