@@ -134,10 +134,19 @@ function receitaQuente(won: Negocio[], receita: number) {
   return { qWon: q.length, qRec: rec, qPct: receita ? rec / receita : 0 };
 }
 
-function cicloMedio(won: Negocio[]): number | null {
-  const c = won.map(d => difDias(d.dCriacao, d.dGanho))
+/* Ciclo = do Dia Oportunidade até o ganho, e NÃO da criação até o ganho.
+   Da criação até o ganho mistura o tempo do SDR com o do closer: um lead que
+   ficou três semanas na fila antes de virar oportunidade inflava o ciclo de
+   quem nem tinha recebido ele ainda. Oportunidade é quando vira trabalho do
+   closer, e é de lá que o relógio dele começa.
+
+   Negócio sem Dia Oportunidade preenchido fica de fora da média — por isso a
+   contagem sai junto, em `nCiclo`. Média de três negócios não é a média do
+   time, e a tela precisa poder dizer isso. */
+function cicloDe(won: Negocio[]) {
+  const c = won.map(d => difDias(d.diaOpp, d.dGanho))
                .filter((x): x is number => x != null && x >= 0);
-  return c.length ? c.reduce((a, b) => a + b, 0) / c.length : null;
+  return { media: c.length ? c.reduce((a, b) => a + b, 0) / c.length : null, n: c.length };
 }
 
 export type Agregado = ReturnType<typeof agg>;
@@ -169,7 +178,9 @@ export function agg(rows: Negocio[], f: Filtros, ret?: Negocio[]) {
     ...forecast(open, conv, f),
     ...receitaRet(won, receita),
     ...receitaQuente(won, receita),
-    ciclo: cicloMedio(won),
+    ciclo: cicloDe(won).media,
+    nCiclo: cicloDe(won).n,          // em quantos ganhos a média se apoia
+    baseCiclo: won.length,           // de quantos ela poderia se apoiar
   };
 }
 
@@ -218,13 +229,19 @@ export function ranking(rows: Negocio[], f: Filtros) {
 }
 
 /* ---------- qualificação do que entrou, e o que virou venda ---------- */
-export function qualificacao(rows: Negocio[]) {
-  const letras = [...new Set(rows.map(d => d.lead).filter(Boolean))].sort() as string[];
-  const semQualificacao = rows.filter(d => !d.lead).length;
+/* Qual nota olhar: a do formulário (`lead`) ou a requalificação do SDR
+   (`leadSql`). A página Closers usa a requalificação — é ela que diz o que o
+   closer recebeu de fato. As outras páginas continuam na do formulário. */
+export type CampoLead = "lead" | "leadSql";
+
+export function qualificacao(rows: Negocio[], campo: CampoLead = "lead") {
+  const nota = (d: Negocio) => (campo === "leadSql" ? d.leadSql : d.lead);
+  const letras = [...new Set(rows.map(nota).filter(Boolean))].sort() as string[];
+  const semQualificacao = rows.filter(d => !nota(d)).length;
   return {
     semQualificacao,
     faixas: letras.map(l => {
-      const arr = rows.filter(d => d.lead === l);
+      const arr = rows.filter(d => nota(d) === l);
       const ganhos = arr.filter(d => d.s === "won").length;
       return { lead: l, total: arr.length, ganhos,
                taxa: arr.length ? ganhos / arr.length : 0 };
@@ -467,8 +484,7 @@ export function perfilCloser(rows: Negocio[], v: string) {
   const lost = r.filter(d => d.s === "lost");
   const churn = r.filter(d => d.churn);
   const receita = won.reduce((a, d) => a + d.val, 0);
-  const ciclos = won.map(d => difDias(d.dCriacao, d.dGanho))
-                    .filter((x): x is number => x != null && x >= 0);
+  const ciclo = cicloDe(won);   // Dia Oportunidade -> ganho; ver cicloDe()
   const comLista = won.filter(d => d.precoLista > 0);
   const lista = comLista.reduce((a, d) => a + d.precoLista, 0);
   const praticado = comLista.reduce((a, d) => a + d.val, 0);
@@ -479,7 +495,7 @@ export function perfilCloser(rows: Negocio[], v: string) {
     conv: r.length ? won.length / r.length : 0,
     net: r.length ? (won.length - churn.length) / r.length : 0,
     ticket: won.length ? receita / won.length : 0,
-    ciclo: ciclos.length ? ciclos.reduce((a, b) => a + b, 0) / ciclos.length : null,
+    ciclo: ciclo.media, nCiclo: ciclo.n, baseCiclo: won.length,
     desconto: lista ? 1 - praticado / lista : null,
     score: notas.length ? notas.reduce((a, b) => a + b, 0) / notas.length : null,
     nNotas: notas.length,
@@ -528,9 +544,12 @@ export function hierarquia(noPeriodo: Negocio[], f: Filtros) {
 }
 
 /** Nos níveis agregados, o topo da distribuição de qualificação (ex.: B 5 · A 3). */
-export function mixLead(rows: Negocio[]) {
+export function mixLead(rows: Negocio[], campo: CampoLead = "lead") {
   const c: Record<string, number> = {};
-  rows.forEach(d => { if (d.lead) c[d.lead] = (c[d.lead] || 0) + 1; });
+  rows.forEach(d => {
+    const nota = campo === "leadSql" ? d.leadSql : d.lead;
+    if (nota) c[nota] = (c[nota] || 0) + 1;
+  });
   return Object.entries(c).sort((x, y) => y[1] - x[1]).slice(0, 2)
     .map(([lead, n]) => ({ lead, n }));
 }

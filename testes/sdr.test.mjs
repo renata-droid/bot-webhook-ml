@@ -83,18 +83,35 @@ ok("conta cada etapa pela SUA data, não pela criação", () =>
   assert.deepEqual(
     { c: json.contagem.conectados, sql: json.contagem.sql,
       ops: json.contagem.ops, sal: json.contagem.sal },
-    // 704 e 705 têm SQL fora do período: entram na leitura, não na conta
-    { c: 4, sql: 2, ops: 1, sal: 2 }));
+    // 704 nasceu ha 150 dias: fora da janela padrao de 90. 705 tem SQL fora do periodo.
+    { c: 4, sql: 2, ops: 1, sal: 1 }));
 
-ok("a janela de 180 dias alcança o lead velho que virou SAL agora", () =>
-  assert.ok(json.negocios.some((d) => d.id === 704 && d.dSal === dd(-2)),
-    "o negócio criado há 150 dias não foi lido"));
+/* O CUSTO DA JANELA, medido em vez de suposto.
+   A busca e por data de CRIACAO, mas a pergunta e sobre datas que vem depois.
+   Um lead criado ha 150 dias que o closer aceitou anteontem conta como SAL de
+   hoje — e so aparece se a janela alcancar o nascimento dele.
+
+   O padrao e 90 dias porque 180 fazia a funcao estourar o limite de recursos
+   do Supabase. Quem precisar de mais estica com ?janela=180. Este par de
+   conferencias existe para ninguem descobrir isso por acidente. */
+ok("com a janela padrao, o lead de 150 dias atras NAO entra", () =>
+  assert.ok(!json.negocios.some((d) => d.id === 704),
+    "entrou sem a janela alcancar"));
+
+const largo = await roda(empacota("supabase/functions/sdr/index.ts", "sdr-largo"),
+  dublê, { de: DE, ate: ATE, extra: "&janela=180" });
+
+ok("com ?janela=180 ele entra, e vira SAL do periodo", () => {
+  assert.ok(largo.json.negocios.some((d) => d.id === 704 && d.dSal === dd(-2)));
+  assert.equal(largo.json.contagem.sal, 2);
+  assert.equal(largo.json.varredura.janela_dias, 180);
+});
 
 ok("negócio fora do período não entra em conta nenhuma", () =>
   assert.ok(!json.negocios.some((d) => d.id === 705)));
 
 ok("só devolve quem participa de alguma etapa — não meio ano de negócios", () =>
-  assert.equal(json.negocios.length, 5));
+  assert.equal(json.negocios.length, 4));   // o 704 saiu com a janela de 90
 
 ok("o SDR vem pelo nome", () =>
   assert.deepEqual([...new Set(json.negocios.map((d) => d.sdr))].sort(),
@@ -109,7 +126,7 @@ ok("quem não tem SDR aparece agrupado, e vira aviso", () => {
 });
 
 ok("a varredura conta o que leu", () => {
-  assert.equal(json.varredura.janela_dias, 180);
+  assert.equal(json.varredura.janela_dias, 90);
   assert.ok(json.varredura.blocos >= 2, "blocos: " + json.varredura.blocos);
   assert.equal(json.varredura.truncado, false);
 });

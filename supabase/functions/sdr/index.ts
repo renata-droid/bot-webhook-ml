@@ -54,7 +54,7 @@ const CAMPOS = {
 
    180 dias cobre com folga o ciclo real. Aumentar isto custa memória e tempo,
    não precisão: o que passa de 180 é raro. */
-const JANELA_DIAS = 180;
+const JANELA_DIAS_PADRAO = 90;
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -162,7 +162,15 @@ type Linha = {
   s: "won" | "lost" | "open"; val: number; dCriacao: string | null;
 };
 
-async function buscar(m: Meta, desde: string, ate: string) {
+async function buscar(m: Meta, desde: string, de: string, ate: string) {
+  /* O negócio é descartado AQUI DENTRO se não participa de nenhuma etapa no
+     período. Antes ele era guardado e filtrado só no fim — meio ano de
+     negócios na memória de uma vez, e a função morria com
+     WORKER_RESOURCE_LIMIT antes de responder qualquer coisa.
+
+     A busca continua sendo por data de criação, porque é o que a timeline
+     filtra; o que muda é que o que não serve morre na hora. */
+  const noPeriodo = (x: string | null) => !!x && x >= de && x <= ate;
   const linhas: Linha[] = [];
   const vistos = new Set<number>();
   let brutos = 0, blocos = 0, truncado = false;
@@ -195,15 +203,21 @@ async function buscar(m: Meta, desde: string, ate: string) {
       vistos.add(d.id);
       const status: Linha["s"] =
         d.status === "won" ? "won" : d.status === "lost" ? "lost" : "open";
+      const dConexao = dia(cf(d, CAMPOS.dConexao));
+      const dSql = dia(cf(d, CAMPOS.dSql));
+      const dOpp = dia(cf(d, CAMPOS.dOpp));
+      const dSal = dia(cf(d, CAMPOS.dSal));
+      if (!noPeriodo(dConexao) && !noPeriodo(dSql) && !noPeriodo(dOpp) && !noPeriodo(dSal)) continue;
+
       linhas.push({
         id: d.id,
         t: d.title ?? "(sem título)",
         sdr: nomeUsuario(m, cf(d, CAMPOS.sdr)) ?? "Sem SDR",
         v: nomeUsuario(m, cf(d, CAMPOS.vendedor)) ?? "Sem closer",
-        dConexao: dia(cf(d, CAMPOS.dConexao)),
-        dSql: dia(cf(d, CAMPOS.dSql)),
-        dOpp: dia(cf(d, CAMPOS.dOpp)),
-        dSal: dia(cf(d, CAMPOS.dSal)),
+        dConexao,
+        dSql,
+        dOpp,
+        dSal,
         lead: rot(m, CAMPOS.lead, cf(d, CAMPOS.lead)),
         leadSql: rot(m, CAMPOS.leadSql, cf(d, CAMPOS.leadSql)),
         canal: rot(m, CAMPOS.canalConex, cf(d, CAMPOS.canalConex)),
@@ -232,25 +246,29 @@ Deno.serve(async (req) => {
       new Date(Date.parse(ate) - 29 * 86400000).toISOString().slice(0, 10);
     if (de > ate) throw new Error("Período invertido: 'de' é maior que 'ate'");
 
+    /* Quantos dias antes do período a busca começa. Sai como parâmetro para
+       poder ser reduzido sem republicar: se a conta crescer e a função voltar
+       a estourar o limite de recursos, `?janela=45` responde na hora. */
+    const janela = Math.max(0, Math.min(365,
+      Number(url.searchParams.get("janela") ?? JANELA_DIAS_PADRAO) || JANELA_DIAS_PADRAO));
+
     const m = await meta();
-    const desde = atras(de, JANELA_DIAS);
-    const { linhas, brutos, blocos, truncado } = await buscar(m, desde, ate);
+    const desde = atras(de, janela);
+    const { linhas, brutos, blocos, truncado } = await buscar(m, desde, de, ate);
 
     /* Cada etapa é contada pela SUA data dentro do período — não pela data de
        criação do negócio. É assim que o Insights conta, e é o que faz o número
        bater: o card "Conectados" filtra por Data Conexão, não por criação. */
     const noPeriodo = (x: string | null) => !!x && x >= de && x <= ate;
+
     const conectados = linhas.filter((d) => noPeriodo(d.dConexao));
     const sql        = linhas.filter((d) => noPeriodo(d.dSql));
     const ops        = linhas.filter((d) => noPeriodo(d.dOpp));
     const sal        = linhas.filter((d) => noPeriodo(d.dSal));
 
-    /* Só sai daqui o negócio que participa de alguma etapa no período. O resto
-       foi lido para poder ser descartado com segurança — mandar tudo para o
-       navegador seria meio ano de negócios numa resposta. */
-    const relevante = new Set<number>();
-    for (const arr of [conectados, sql, ops, sal]) for (const d of arr) relevante.add(d.id);
-    const negocios = linhas.filter((d) => relevante.has(d.id));
+    // `linhas` já vem só com quem participa de alguma etapa — o descarte
+    // acontece dentro do laço da busca, senão a função morre antes de chegar aqui.
+    const negocios = linhas;
 
     const avisos: string[] = [];
     if (truncado) avisos.push(
@@ -274,7 +292,7 @@ Deno.serve(async (req) => {
         negocios: negocios.length,
       },
       // o que a varredura leu de fato — responde "por que veio menos do que eu esperava"
-      varredura: { desde, ate, janela_dias: JANELA_DIAS, blocos, brutos, lidos: linhas.length, truncado },
+      varredura: { desde, ate, janela_dias: janela, blocos, brutos, lidos: linhas.length, truncado },
       avisos,
       negocios,
     }, { headers: CORS });

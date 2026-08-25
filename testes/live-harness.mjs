@@ -25,7 +25,7 @@ export function empacota(entrada, rotulo) {
 }
 
 /** Sobe a função e devolve o JSON que ela responderia para ?de=..&ate=.. */
-export async function roda(bundle, pipedrive, { de, ate }) {
+export async function roda(bundle, pipedrive, { de, ate, extra = "" }) {
   let tratador = null;
   globalThis.Deno = {
     env: { get: (k) => (k === "PIPEDRIVE_API_TOKEN" ? "token-de-mentira" : undefined) },
@@ -45,7 +45,7 @@ export async function roda(bundle, pipedrive, { de, ate }) {
   // com o META da rodada anterior dentro
   await import(pathToFileURL(bundle).href + "?v=" + Math.random().toString(36).slice(2));
   if (!tratador) throw new Error("a função não chamou Deno.serve");
-  const r = await tratador(new Request(`http://local/live?de=${de}&ate=${ate}`));
+  const r = await tratador(new Request(`http://local/live?de=${de}&ate=${ate}${extra}`));
   return { json: await r.json(), chamadas };
 }
 
