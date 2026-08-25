@@ -20,10 +20,10 @@ const rows = [
   // conectado e SQL, desceu (A -> C)
   mk({ dConexao: "2026-08-06", dSql: "2026-08-06", lead: "A", leadSql: "C" }),
   // só conectado
-  mk({ dConexao: "2026-08-07", sdr: "Gabriel" }),
+  mk({ dConexao: "2026-08-07", sdr: "Gabriel Frizzo" }),
   // lead velho: conectado em julho, mas SAL em agosto — conta como SAL do mês
   mk({ dConexao: "2026-07-10", dSql: "2026-07-10", dOpp: "2026-08-10", dSal: "2026-08-11",
-       lead: "A", sdr: "Gabriel" }),
+       lead: "A", sdr: "Gabriel Frizzo" }),
   // tudo fora do período
   mk({ dConexao: "2026-07-01", dSql: "2026-07-01", lead: "C", leadSql: "C" }),
 ];
@@ -49,7 +49,7 @@ ok("aceite = SAL sobre conectados", () =>
 
 const tab = N.porSdr(rows, f);
 ok("uma linha por SDR, ordenada por SAL", () =>
-  assert.deepEqual(tab.map(x => [x.sdr, x.sal]), [["Leticia", 1], ["Gabriel", 1]]));
+  assert.deepEqual(tab.map(x => [x.sdr, x.sal]), [["Leticia", 1], ["Gabriel Frizzo", 1]]));
 
 ok("receita conta so o que virou venda", () =>
   assert.equal(tab.find(x => x.sdr === "Leticia").receita, 15000));
@@ -57,7 +57,7 @@ ok("receita conta so o que virou venda", () =>
 const nota = N.salPorNota(rows, f);
 ok("SAL repartido por nota do formulario", () => {
   assert.equal(nota.total, 2);
-  assert.deepEqual(nota.porSdr.map(x => x.sdr).sort(), ["Gabriel", "Leticia"]);
+  assert.deepEqual(nota.porSdr.map(x => x.sdr).sort(), ["Gabriel Frizzo", "Leticia"]);
 });
 
 const req = N.requalificacao(rows, f);
@@ -82,32 +82,44 @@ ok("diz quantos ficaram de fora por faltar um dos lados", () =>
   assert.equal(req.semOsDoisLados, 1));
 
 ok("filtro por SDR corta tudo junto", () => {
-  const g = N.funilSdr(rows, { ...f, sdr: "Gabriel" });
+  const g = N.funilSdr(rows, { ...f, sdr: "Gabriel Frizzo" });
   assert.equal(g.conectados.length, 1);
   assert.equal(g.sal.length, 1);
 });
 
-ok("o time de CS nao entra na pagina de SDR", () => {
-  const cs = [
+ok("so quem esta na lista de SDR entra na pagina", () => {
+  const fora = [
     mk({ dConexao: "2026-08-12", dSql: "2026-08-12", dSal: "2026-08-13", sdr: "Robert Rodrigues" }),
-    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "Suzane Oroz" }),
-    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "Wallace Sartorelli" }),
     mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "Allana Bueno" }),
-    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "Luis Castagne" }),
+    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "Milena Bragiatto" }),
+    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "tecnologia@awsales.io" }),
+    mk({ dConexao: "2026-08-12", dSal: "2026-08-13", sdr: "" }),
   ];
-  const com = N.funilSdr([...rows, ...cs], f);
+  const com = N.funilSdr([...rows, ...fora], f);
   assert.deepEqual(
     { c: com.conectados.length, sal: com.sal.length },
     { c: fun.conectados.length, sal: fun.sal.length });
-  assert.deepEqual(N.porSdr([...rows, ...cs], f).map(l => l.sdr).sort(), ["Gabriel", "Leticia"]);
+  assert.deepEqual(N.porSdr([...rows, ...fora], f).map(l => l.sdr).sort(),
+                   ["Gabriel Frizzo", "Leticia"]);
 });
 
-ok("negocio sem SDR preenchido tambem fica de fora", () =>
-  assert.equal(N.funilSdr([...rows, mk({ dConexao: "2026-08-12", sdr: "" })], f)
-                .conectados.length, fun.conectados.length));
+ok("o mesmo corte vale para a matriz de requalificacao", () => {
+  const fora = mk({ dConexao: "2026-08-12", dSql: "2026-08-12",
+                    lead: "A", leadSql: "B", sdr: "Milena Bragiatto" });
+  const req = N.requalificacao([...rows, fora], f);
+  assert.ok(!req.porSdr.some(l => l.sdr === "Milena Bragiatto"));
+  assert.equal(req.time.total, N.requalificacao(rows, f).time.total);
+});
 
-ok("acento no nome nao escapa do corte", () =>
-  assert.equal(N.ehSdr("Róbert Rodrígues"), false));
+ok("SQL, OPS e SAL saem da mesma conta, muda so a data", () => {
+  const sql = N.porNota(rows, f, "sql"), ops = N.porNota(rows, f, "ops");
+  assert.equal(sql.total, fun.sql.length);
+  assert.equal(ops.total, fun.ops.length);
+  assert.deepEqual(N.porNota(rows, f, "sal"), N.salPorNota(rows, f));
+});
+
+ok("acento no nome nao atrapalha a lista", () =>
+  assert.equal(N.ehSdr("Letícia Almeida"), true));
 
 console.log(`\n${n} conferências` + (falhou ? " — TEM FALHA" : ", todas passando"));
 process.exit(falhou ? 1 : 0);

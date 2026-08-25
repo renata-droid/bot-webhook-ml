@@ -850,14 +850,14 @@ export type FiltroSdr = { de: string; ate: string; sdr?: string; canal?: string 
 
 const noPeriodo = (x: string | null, f: FiltroSdr) => !!x && x >= f.de && x <= f.ate;
 
-export const NAO_SDR = ["robert", "suzane", "sartorelli", "allana", "castagne"];
+export const SDRS = ["gabriel frizzo", "leticia", "dominique", "nicolas"];
 
 const semAcento = (x: string) =>
   x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 export const ehSdr = (nome: string | null | undefined): boolean => {
-  const n = semAcento(String(nome ?? ""));
-  return !!n.trim() && !NAO_SDR.some(x => n.includes(x));
+  const n = semAcento(String(nome ?? "")).trim();
+  return !!n && SDRS.some(x => n.includes(x));
 };
 
 export const filtraSdr = (rows: NegocioSdr[], f: FiltroSdr): NegocioSdr[] =>
@@ -903,10 +903,20 @@ export function porSdr(rows: NegocioSdr[], f: FiltroSdr) {
 
 export const NOTAS = ["A", "B", "C", "D", "E", "F"];
 
-export function salPorNota(rows: NegocioSdr[], f: FiltroSdr) {
-  const sal = filtraSdr(rows, f).filter(d => noPeriodo(d.dSal, f));
-  const porSdrNota = [...new Set(sal.map(d => d.sdr))].map(sdr => {
-    const meus = sal.filter(d => d.sdr === sdr);
+export type EtapaSdr = "conectados" | "sql" | "ops" | "sal";
+
+const DATA_DA_ETAPA: Record<EtapaSdr, (d: NegocioSdr) => string | null> = {
+  conectados: d => d.dConexao,
+  sql: d => d.dSql,
+  ops: d => d.dOpp,
+  sal: d => d.dSal,
+};
+
+export function porNota(rows: NegocioSdr[], f: FiltroSdr, etapa: EtapaSdr) {
+  const quando = DATA_DA_ETAPA[etapa];
+  const dentro = filtraSdr(rows, f).filter(d => noPeriodo(quando(d), f));
+  const porSdrNota = [...new Set(dentro.map(d => d.sdr))].map(sdr => {
+    const meus = dentro.filter(d => d.sdr === sdr);
     return {
       sdr, total: meus.length,
       faixas: [...NOTAS, null].map(n => ({
@@ -915,8 +925,10 @@ export function salPorNota(rows: NegocioSdr[], f: FiltroSdr) {
       })).filter(x => x.n > 0),
     };
   }).sort((a, b) => b.total - a.total);
-  return { total: sal.length, porSdr: porSdrNota };
+  return { etapa, total: dentro.length, porSdr: porSdrNota };
 }
+
+export const salPorNota = (rows: NegocioSdr[], f: FiltroSdr) => porNota(rows, f, "sal");
 
 export function requalificacao(rows: NegocioSdr[], f: FiltroSdr) {
   const r = filtraSdr(rows, f)

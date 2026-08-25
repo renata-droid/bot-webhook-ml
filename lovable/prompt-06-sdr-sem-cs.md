@@ -1,19 +1,44 @@
-Substitua o conteúdo do arquivo `src/lib/calculos.ts` inteiro pelo código que
-está no fim desta mensagem. Não mude mais nada na página SDR — o layout, os
-cards, o gráfico e a tabela continuam iguais.
+Duas coisas: substituir um arquivo e ajustar um bloco da página SDR.
 
-O que mudou no arquivo: o campo "Vendedor SDR" do Pipedrive às vezes vem
-preenchido com gente do time de CS, que não é SDR. Agora `filtraSdr` corta
-esses nomes, e como todo o resto da página (funilSdr, porSdr, salPorNota,
-requalificacao) passa por ele, os cards, o gráfico "SAL por SDR", a tabela
-"Por SDR" e a matriz de requalificação já saem sem eles.
+## 1. Substituir o arquivo
 
-Uma coisa só para você conferir na página: se o filtro/dropdown de SDR estiver
-montando a lista de nomes a partir dos dados crus, troque para montar a partir
-de `filtraSdr(rows, { de, ate })`, ou use `ehSdr(nome)` — senão os nomes de CS
-continuam aparecendo na lista de opções mesmo sem número nenhum.
+Substitua o conteúdo inteiro de `src/lib/calculos.ts` pelo código no fim desta
+mensagem. Ele agora tem uma lista `SDRS` com quem é SDR de verdade (Gabriel
+Frizzo, Leticia, Dominique, Nicolas) e **só** essas pessoas passam por
+`filtraSdr`. Como cards, gráficos, tabela e matriz de requalificação passam
+todos por `filtraSdr`, os quatro blocos têm que mostrar exatamente a mesma
+lista de gente. Hoje não mostram: a tabela "Por SDR" e a matriz ainda trazem
+`tecnologia@awsales.io`, `Sem SDR`, `Milena Bragiatto`, `Lucas Jesus`,
+`Andrea Francisco`, `Renato Benedetti` e `Aline Silva`. Depois da troca,
+nenhum desses nomes pode aparecer em lugar nenhum da página.
 
-Arquivo:
+Se algum bloco estiver montando a lista de nomes a partir dos dados crus em vez
+de usar o resultado de `filtraSdr`/`porSdr`/`requalificacao`, corrija — inclusive
+o dropdown de filtro por SDR, que deve usar `ehSdr(nome)`.
+
+## 2. Trocar o gráfico "SAL por SDR" por SQL e OPS
+
+Tire o gráfico "SAL por SDR". No lugar dele, dois gráficos **lado a lado** (duas
+colunas no desktop, empilhados no celular), no mesmo estilo de barra horizontal
+empilhada por nota do lead que já existe:
+
+- **SQL por SDR** — `porNota(rows, filtro, "sql")`
+- **OPS por SDR** — `porNota(rows, filtro, "ops")`
+
+`porNota` devolve `{ etapa, total, porSdr: [{ sdr, total, faixas: [{nota, n}] }] }`,
+o mesmo formato que o `salPorNota` devolvia, então é só reaproveitar o
+componente de barra que já está lá — passando os dados duas vezes.
+
+Como agora são dois, deixe mais condensado que o de hoje: barras mais finas,
+uma legenda de notas só (compartilhada pelos dois, embaixo do par), e o número
+total no fim de cada barra como já é hoje.
+
+O SAL não some da página: continua no card do funil e na coluna SAL da tabela
+"Por SDR". Só o gráfico dele é que sai.
+
+O bloco de **Requalificação** fica exatamente como está.
+
+## Arquivo
 
 ```ts
 export type Analise = {
@@ -868,14 +893,14 @@ export type FiltroSdr = { de: string; ate: string; sdr?: string; canal?: string 
 
 const noPeriodo = (x: string | null, f: FiltroSdr) => !!x && x >= f.de && x <= f.ate;
 
-export const NAO_SDR = ["robert", "suzane", "sartorelli", "allana", "castagne"];
+export const SDRS = ["gabriel frizzo", "leticia", "dominique", "nicolas"];
 
 const semAcento = (x: string) =>
   x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 export const ehSdr = (nome: string | null | undefined): boolean => {
-  const n = semAcento(String(nome ?? ""));
-  return !!n.trim() && !NAO_SDR.some(x => n.includes(x));
+  const n = semAcento(String(nome ?? "")).trim();
+  return !!n && SDRS.some(x => n.includes(x));
 };
 
 export const filtraSdr = (rows: NegocioSdr[], f: FiltroSdr): NegocioSdr[] =>
@@ -921,10 +946,20 @@ export function porSdr(rows: NegocioSdr[], f: FiltroSdr) {
 
 export const NOTAS = ["A", "B", "C", "D", "E", "F"];
 
-export function salPorNota(rows: NegocioSdr[], f: FiltroSdr) {
-  const sal = filtraSdr(rows, f).filter(d => noPeriodo(d.dSal, f));
-  const porSdrNota = [...new Set(sal.map(d => d.sdr))].map(sdr => {
-    const meus = sal.filter(d => d.sdr === sdr);
+export type EtapaSdr = "conectados" | "sql" | "ops" | "sal";
+
+const DATA_DA_ETAPA: Record<EtapaSdr, (d: NegocioSdr) => string | null> = {
+  conectados: d => d.dConexao,
+  sql: d => d.dSql,
+  ops: d => d.dOpp,
+  sal: d => d.dSal,
+};
+
+export function porNota(rows: NegocioSdr[], f: FiltroSdr, etapa: EtapaSdr) {
+  const quando = DATA_DA_ETAPA[etapa];
+  const dentro = filtraSdr(rows, f).filter(d => noPeriodo(quando(d), f));
+  const porSdrNota = [...new Set(dentro.map(d => d.sdr))].map(sdr => {
+    const meus = dentro.filter(d => d.sdr === sdr);
     return {
       sdr, total: meus.length,
       faixas: [...NOTAS, null].map(n => ({
@@ -933,8 +968,10 @@ export function salPorNota(rows: NegocioSdr[], f: FiltroSdr) {
       })).filter(x => x.n > 0),
     };
   }).sort((a, b) => b.total - a.total);
-  return { total: sal.length, porSdr: porSdrNota };
+  return { etapa, total: dentro.length, porSdr: porSdrNota };
 }
+
+export const salPorNota = (rows: NegocioSdr[], f: FiltroSdr) => porNota(rows, f, "sal");
 
 export function requalificacao(rows: NegocioSdr[], f: FiltroSdr) {
   const r = filtraSdr(rows, f)
