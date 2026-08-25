@@ -1055,3 +1055,148 @@ export function corteRet(rows: Negocio[], f: Filtros, qual: keyof typeof CORTES_
     .sort((a, b) => b.agendados.length - a.agendados.length || b.receita - a.receita);
   return { linhas, total: funilRet(rows, f), titulo: CORTES_RET[qual].titulo };
 }
+
+/* ============================================================================
+   SDR
+   ============================================================================
+   Vem de OUTRO endpoint — a função `sdr`, não a `live`. São perguntas
+   diferentes: a `live` conta negócios por desfecho, esta conta etapas do lead
+   por data em que cada etapa aconteceu.
+
+   O funil: Conectado -> SQL -> OPS -> SAL.
+   · Conectado = alguém falou com o lead (Data Conexão)
+   · SQL       = o SDR qualificou (Data Qualificação)
+   · OPS       = virou oportunidade (Dia Oportunidade)
+   · SAL       = o closer ACEITOU (Data SAL) — é o que o SDR entrega de fato
+
+   Cada etapa é contada pela SUA data dentro do período, não pela data de
+   criação do negócio. Um lead de março aceito em agosto é SAL de agosto. */
+
+export type NegocioSdr = {
+  id: number; t: string;
+  sdr: string; v: string;
+  dConexao: string | null; dSql: string | null; dOpp: string | null; dSal: string | null;
+  lead: string | null;        // como o lead chegou, pelo formulário
+  leadSql: string | null;     // como ficou depois da requalificação do SDR
+  canal: string | null; orig: string | null;
+  s: "won" | "lost" | "open";
+  val: number; dCriacao: string | null;
+};
+
+export type FiltroSdr = { de: string; ate: string; sdr?: string; canal?: string };
+
+const noPeriodo = (x: string | null, f: FiltroSdr) => !!x && x >= f.de && x <= f.ate;
+
+export const filtraSdr = (rows: NegocioSdr[], f: FiltroSdr): NegocioSdr[] =>
+  rows.filter(d => (!f.sdr || d.sdr === f.sdr) && (!f.canal || d.canal === f.canal));
+
+/** O funil do time. Cada etapa pela sua própria data. */
+export function funilSdr(rows: NegocioSdr[], f: FiltroSdr) {
+  const r = filtraSdr(rows, f);
+  const conectados = r.filter(d => noPeriodo(d.dConexao, f));
+  const sql        = r.filter(d => noPeriodo(d.dSql, f));
+  const ops        = r.filter(d => noPeriodo(d.dOpp, f));
+  const sal        = r.filter(d => noPeriodo(d.dSal, f));
+  const taxa = (a: number, b: number) => (b ? a / b : null);
+  return {
+    conectados, sql, ops, sal,
+    /* Aceite = SAL ÷ conectados. É o número que dói: mostra quem manda volume
+       e quem manda lead que o closer aceita. Lead recusado é trabalho jogado
+       fora, e sem esta taxa isso não aparece em lugar nenhum. */
+    aceite: taxa(sal.length, conectados.length),
+    taxaSql: taxa(sql.length, conectados.length),
+    taxaOps: taxa(ops.length, sql.length),
+    taxaSal: taxa(sal.length, ops.length),
+  };
+}
+
+/** Uma linha por SDR. Ordenada por SAL, que é o que ele entrega. */
+export function porSdr(rows: NegocioSdr[], f: FiltroSdr) {
+  const r = filtraSdr(rows, f);
+  return [...new Set(r.map(d => d.sdr))].map(sdr => {
+    const meus = r.filter(d => d.sdr === sdr);
+    const conectados = meus.filter(d => noPeriodo(d.dConexao, f));
+    const sql = meus.filter(d => noPeriodo(d.dSql, f));
+    const ops = meus.filter(d => noPeriodo(d.dOpp, f));
+    const sal = meus.filter(d => noPeriodo(d.dSal, f));
+    const won = sal.filter(d => d.s === "won");
+    return {
+      sdr,
+      conectados: conectados.length, sql: sql.length, ops: ops.length, sal: sal.length,
+      aceite: conectados.length ? sal.length / conectados.length : null,
+      vendas: won.length,
+      receita: won.reduce((a, d) => a + d.val, 0),
+    };
+  }).sort((a, b) => b.sal - a.sal || b.conectados - a.conectados);
+}
+
+/* SAL por SDR, repartido por nota — o gráfico do Insights.
+   A nota é a do FORMULÁRIO (`lead`), não a requalificação: `leadSql` é pouco
+   preenchido e o gráfico viraria uma barra de "sem nota". A requalificação tem
+   lugar próprio, na matriz abaixo. */
+export const NOTAS = ["A", "B", "C", "D", "E", "F"];
+
+export function salPorNota(rows: NegocioSdr[], f: FiltroSdr) {
+  const sal = filtraSdr(rows, f).filter(d => noPeriodo(d.dSal, f));
+  const porSdrNota = [...new Set(sal.map(d => d.sdr))].map(sdr => {
+    const meus = sal.filter(d => d.sdr === sdr);
+    return {
+      sdr, total: meus.length,
+      faixas: [...NOTAS, null].map(n => ({
+        nota: n ?? "Sem nota",
+        n: meus.filter(d => (d.lead ?? null) === n).length,
+      })).filter(x => x.n > 0),
+    };
+  }).sort((a, b) => b.total - a.total);
+  return { total: sal.length, porSdr: porSdrNota };
+}
+
+/* ---------- requalificação: como chegou × como ficou ----------
+   O lead entra com uma nota do formulário e o SDR reavalia. Subir tudo para A
+   passa lead ruim adiante; descer tudo derruba lead bom. A matriz mostra os
+   dois de uma vez, e o resumo diz em que direção cada SDR erra.
+
+   A ordem das notas é A > B > C > D > E > F, então "subiu" é ir para uma letra
+   ANTERIOR no alfabeto. É contraintuitivo de ler no código; por isso está
+   escrito aqui. */
+export function requalificacao(rows: NegocioSdr[], f: FiltroSdr) {
+  const r = filtraSdr(rows, f)
+    .filter(d => noPeriodo(d.dSql, f) || noPeriodo(d.dConexao, f))
+    .filter(d => d.lead && d.leadSql);          // só quem tem os dois lados
+
+  const pos = (n: string) => NOTAS.indexOf(n);
+  const direcao = (d: NegocioSdr) => {
+    const a = pos(d.lead as string), b = pos(d.leadSql as string);
+    return b < a ? "subiu" : b > a ? "desceu" : "manteve";
+  };
+
+  const matriz = NOTAS.map(de => ({
+    de,
+    para: NOTAS.map(pa => ({
+      para: pa,
+      n: r.filter(d => d.lead === de && d.leadSql === pa).length,
+    })),
+    total: r.filter(d => d.lead === de).length,
+  })).filter(l => l.total > 0);
+
+  const conta = (arr: NegocioSdr[]) => ({
+    total: arr.length,
+    manteve: arr.filter(d => direcao(d) === "manteve").length,
+    subiu: arr.filter(d => direcao(d) === "subiu").length,
+    desceu: arr.filter(d => direcao(d) === "desceu").length,
+  });
+
+  return {
+    matriz,
+    notas: NOTAS.filter(n => r.some(d => d.lead === n || d.leadSql === n)),
+    time: conta(r),
+    porSdr: [...new Set(r.map(d => d.sdr))]
+      .map(sdr => ({ sdr, ...conta(r.filter(d => d.sdr === sdr)) }))
+      .sort((a, b) => b.total - a.total),
+    /* Quantos ficaram de fora por não ter os dois lados preenchidos. Sem isto
+       o painel diz "68% manteve" sem avisar que a conta é sobre um terço. */
+    semOsDoisLados: filtraSdr(rows, f)
+      .filter(d => noPeriodo(d.dSql, f) || noPeriodo(d.dConexao, f))
+      .filter(d => !d.lead || !d.leadSql).length,
+  };
+}
