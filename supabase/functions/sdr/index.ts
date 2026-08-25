@@ -32,7 +32,8 @@ const CORS = {
 const CAMPOS = {
   sdr:         "966e0b1c6e28cbb30fb6d82394746d33da5c07ea",  // Vendedor SDR
   vendedor:    "db2c9632937b836eae914bb3749d19f3b129b31d",  // o closer
-  lead:        "1cb9ad4729d5f241f8a329045613582070ee2c95",  // Lead (A–F)
+  lead:        "1cb9ad4729d5f241f8a329045613582070ee2c95",  // Lead (A–F), do formulário
+  leadSql:     "44a8dc2ef746c237899ea6f96f802b7b275874a2",  // Lead - SQL, a requalificação do SDR
   canalConex:  "a029b05c61e5a5c143d5c5fab5c440d622b3169f",
   origemContr: "e686706d165184efa332298cdc2bd737571952fe",
   dConexao:    "c527b5a136e4e64856851d721785b39b5f9274ae",  // "Dia em que foi conseguido contato com o Lead"
@@ -155,7 +156,9 @@ const nomeUsuario = (m: Meta, v: any) => {
 type Linha = {
   id: number; t: string; sdr: string; v: string;
   dConexao: string | null; dSql: string | null; dOpp: string | null; dSal: string | null;
-  lead: string | null; canal: string | null; orig: string | null;
+  lead: string | null;               // como o lead CHEGOU, pelo formulário
+  leadSql: string | null;            // como ficou depois da requalificação do SDR
+  canal: string | null; orig: string | null;
   s: "won" | "lost" | "open"; val: number; dCriacao: string | null;
 };
 
@@ -202,6 +205,7 @@ async function buscar(m: Meta, desde: string, ate: string) {
         dOpp: dia(cf(d, CAMPOS.dOpp)),
         dSal: dia(cf(d, CAMPOS.dSal)),
         lead: rot(m, CAMPOS.lead, cf(d, CAMPOS.lead)),
+        leadSql: rot(m, CAMPOS.leadSql, cf(d, CAMPOS.leadSql)),
         canal: rot(m, CAMPOS.canalConex, cf(d, CAMPOS.canalConex)),
         orig: rot(m, CAMPOS.origemContr, cf(d, CAMPOS.origemContr)),
         s: status,

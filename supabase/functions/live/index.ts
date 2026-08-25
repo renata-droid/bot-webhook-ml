@@ -76,7 +76,15 @@ const CAMPOS_V2 = [
   "3d8b962590bb3422ffcf9ea1c2ae3223ac1745e0", // Data retorno agendado
   "e686706d165184efa332298cdc2bd737571952fe", // Origem contratual
   "c1056dfb2bc711a3a2dc66b4dc9c83a436a36a84", // Descrição da perda
-  "ae214022c185ae7ff63ea20f1a9a9c08dc19e685", // Nro de retornos
+  /* "Nro de retornos" saiu daqui para o "Lead - SQL" entrar. O v2 aceita 15
+     campos e a lista estava cheia.
+     Nro de retornos: ~0% preenchido, e o campo está invisível em todos os
+     funis — ninguém consegue preencher nem se quisesse. Só alimentava a coluna
+     "Toques", que já vinha vazia.
+     Lead - SQL: é a requalificação feita pelo SDR, e sem ele aqui a coluna de
+     qualificação da página Closers ficaria em branco em todo negócio perdido —
+     que é a maior parte da tabela. */
+  "44a8dc2ef746c237899ea6f96f802b7b275874a2", // Lead - SQL (requalificação do SDR)
   "ee1a9a6385a9484273a765926c2307bc667f8e6d", // Data retorno realizado
   "57f999401867edd9e2b7e2cb6ec110b54846a870", // Saúde do aluno
   "2c29e719270fbfd6ecd08493148c39a00e0befba", // Data do cancelamento

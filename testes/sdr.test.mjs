@@ -11,6 +11,7 @@ const C = {
   dSql:     "7382f9db5de1930988bc7acbd676abaa4079a015",
   dOpp:     "395bf927e670b580aa5d012e9f242defca9f3050",
   dSal:     "62df15f8b5a4071a910ee37b0a4b4654afbc48db",
+  leadSql:  "44a8dc2ef746c237899ea6f96f802b7b275874a2",
 };
 const HOJE = new Date().toISOString().slice(0, 10);
 const dd = (n) => new Date(Date.parse(HOJE + "T12:00:00Z") + n * 86400e3).toISOString().slice(0, 10);
@@ -25,11 +26,12 @@ const mk = (o) => Object.assign({
 
 const negocios = [
   // conectado, SQL, OPS e SAL todos no período — o caminho completo
-  mk({ [C.dConexao]: dd(-8), [C.dSql]: dd(-7), [C.dOpp]: dd(-6), [C.dSal]: dd(-5) }),
+  mk({ [C.dConexao]: dd(-8), [C.dSql]: dd(-7), [C.dOpp]: dd(-6), [C.dSal]: dd(-5),
+       [C.lead]: 42, [C.leadSql]: 42 }),   // veio B, ficou B — manteve
   // conectado mas parou aí
-  mk({ [C.dConexao]: dd(-4), [C.sdr]: 32, [C.lead]: 42 }),
+  mk({ [C.dConexao]: dd(-4), [C.sdr]: 32, [C.lead]: 42, [C.leadSql]: 41 }),  // B -> A, subiu
   // conectado e SQL, sem OPS nem SAL
-  mk({ [C.dConexao]: dd(-3), [C.dSql]: dd(-2), [C.sdr]: 32 }),
+  mk({ [C.dConexao]: dd(-3), [C.dSql]: dd(-2), [C.sdr]: 32, [C.lead]: 41, [C.leadSql]: 43 }), // A -> C, desceu
   /* O CASO QUE JUSTIFICA A JANELA DE 180 DIAS: criado há 5 meses, conectado há
      muito tempo, e só agora o closer aceitou. Conta como SAL do período. Com
      janela curta ele nem seria lido. */
@@ -45,6 +47,8 @@ const dublê = (u) => {
   const p = u.pathname, s = u.searchParams;
   if (p === "/api/v1/dealFields") return { data: [
     { key: C.lead, name: "Lead", options: [
+      { id: 41, label: "A" }, { id: 42, label: "B" }, { id: 43, label: "C" }] },
+    { key: C.leadSql, name: "Lead - SQL", options: [
       { id: 41, label: "A" }, { id: 42, label: "B" }, { id: 43, label: "C" }] },
   ] };
   if (p === "/api/v1/users") return { data: [
@@ -112,6 +116,13 @@ ok("a varredura conta o que leu", () => {
 
 ok("não encosta na API v2 — nada de limite de 15 campos", () =>
   assert.ok(!chamadas.some((c) => c.includes("/api/v2/")), chamadas.join(" | ")));
+
+ok("traz o lead do formulario E a requalificacao do SDR, lado a lado", () => {
+  const par = (id) => { const d = json.negocios.find((x) => x.id === id); return [d.lead, d.leadSql]; };
+  assert.deepEqual(par(701), ["B", "B"], "manteve");
+  assert.deepEqual(par(702), ["B", "A"], "subiu");
+  assert.deepEqual(par(703), ["A", "C"], "desceu");
+});
 
 console.log(`\n${n} conferências` + (falhou ? " — TEM FALHA" : ", todas passando"));
 process.exit(falhou ? 1 : 0);
